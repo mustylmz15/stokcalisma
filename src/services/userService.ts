@@ -1,0 +1,327 @@
+import { auth, db } from '@/firebase';
+import { 
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    signOut,
+    updateProfile,
+    deleteUser as firebaseDeleteUser,
+    User as FirebaseUser
+} from 'firebase/auth';
+import { 
+    doc, 
+    collection,
+    setDoc, 
+    getDoc, 
+    getDocs, 
+    updateDoc, 
+    deleteDoc,
+    query,
+    where,
+    serverTimestamp
+} from 'firebase/firestore';
+
+// Uygulama genelinde kullanılacak kullanıcı verisi
+let currentUser = null;
+let users = [];
+
+// Temel kullanıcı tipi
+export interface BaseUserDocument {
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+    isActive: boolean;
+    createdAt: string;
+    lastLogin: string;
+    phone: string;
+    depot: string | null;
+    avatar: string;
+    canEdit: boolean;
+}
+
+// Giriş bilgileri için tip
+export interface LoginCredentials {
+    email: string;
+    password: string;
+}
+
+// Yeni kullanıcı kaydı için tip
+export interface UserInput {
+    email: string;
+    password: string;
+    name?: string;
+    role?: string;
+    phone?: string;
+    depot?: string | null;
+    avatar?: string;
+}
+
+// Kullanıcı güncellemesi için tip
+export interface UpdateUserInput {
+    name?: string;
+    role?: string;
+    phone?: string;
+    depot?: string | null;
+    avatar?: string;
+    isActive?: boolean;
+}
+
+// Ana kullanıcı dökümanı tipi
+export interface UserDocument extends BaseUserDocument {
+    updatedAt?: string;
+    password?: string; // Sadece kayıt sırasında kullanılır
+}
+
+// Kullanıcı servisi
+export const userService = {
+    // Kullanıcı girişi
+    async login(email: string, password: string): Promise<UserDocument> {
+        try {
+            if (!email || !password) {
+                throw new Error('Email ve şifre zorunludur');
+            }
+
+            if (!/^\S+@\S+\.\S+$/.test(email)) {
+                throw new Error('Geçerli bir email adresi giriniz');
+            }
+
+            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+            
+            if (userDoc.exists()) {
+                const userData = userDoc.data();
+                
+                if (!userData.isActive) {
+                    throw new Error('Bu hesap devre dışı bırakılmış');
+                }
+                
+                const lastLogin = new Date().toISOString();
+                await updateDoc(doc(db, 'users', userCredential.user.uid), { lastLogin });
+                
+                return {
+                    ...userData,
+                    id: userCredential.user.uid,
+                    lastLogin
+                } as UserDocument;
+            }
+            
+            // Eğer Firestore'da kullanıcı dökumanı yoksa yeni oluştur
+            const defaultUserData = {
+                id: userCredential.user.uid,
+                email: userCredential.user.email!,
+                name: userCredential.user.displayName || email.split('@')[0],
+                role: 'user',
+                isActive: true,
+                createdAt: new Date().toISOString(),
+                lastLogin: new Date().toISOString(),
+                phone: '',
+                depot: null,
+                avatar: '/assets/images/profile-2.jpeg',
+                canEdit: false
+            };
+            
+            await setDoc(doc(db, 'users', userCredential.user.uid), defaultUserData);
+            return defaultUserData;
+        } catch (error: any) {
+            console.error('Login error:', error);
+            if (error.code === 'auth/user-not-found') {
+                throw new Error('Kullanıcı bulunamadı');
+            } else if (error.code === 'auth/wrong-password') {
+                throw new Error('Hatalı şifre');
+            } else if (error.code === 'auth/invalid-email') {
+                throw new Error('Geçersiz email adresi');
+            } else if (error.code === 'auth/user-disabled') {
+                throw new Error('Bu hesap devre dışı bırakılmış');
+            }
+            throw error;
+        }
+    },
+
+    // Kullanıcı çıkışı
+    async logout(): Promise<void> {
+        await signOut(auth);
+    },
+
+    // Yeni kullanıcı kaydı
+    async register(userData: UserInput): Promise<UserDocument> {
+        try {
+            // Input validasyonu
+            if (!userData.email || !userData.password) {
+                throw new Error('Email ve şifre zorunludur');
+            }
+
+            if (!/^\S+@\S+\.\S+$/.test(userData.email)) {
+                throw new Error('Geçerli bir email adresi giriniz');
+            }
+
+            if (userData.password.length < 6) {
+                throw new Error('Şifre en az 6 karakter olmalıdır');
+            }
+
+            if (userData.phone && !/^[0-9\s-+()]*$/.test(userData.phone)) {
+                throw new Error('Geçerli bir telefon numarası giriniz');
+            }
+
+            const userCredential = await createUserWithEmailAndPassword(auth, userData.email, userData.password);
+            
+            if (userData.name) {
+                try {
+                    await updateProfile(userCredential.user, {
+                        displayName: userData.name
+                    });
+                } catch (profileError) {
+                    console.error('Profile update error:', profileError);
+                }
+            }
+            
+            const defaultAvatar = '/assets/images/profile-2.jpeg';
+            const userDocument: Omit<UserDocument, 'id'> = {
+                email: userData.email,
+                name: userData.name || userData.email.split('@')[0],
+                role: userData.role || 'user',
+                isActive: true,
+                createdAt: new Date().toISOString(),
+                lastLogin: new Date().toISOString(),
+                phone: userData.phone ? String(userData.phone) : '',
+                depot: userData.depot || null,
+                avatar: userData.avatar || defaultAvatar,
+                canEdit: ['admin', 'user', 'proje_admin'].includes(userData.role || 'user')
+            };
+            
+            try {
+                await setDoc(doc(db, 'users', userCredential.user.uid), userDocument);
+            } catch (firestoreError) {
+                console.error('Firestore save error:', firestoreError);
+                await userCredential.user.delete();
+                throw new Error('Kullanıcı kaydı tamamlanamadı');
+            }
+            
+            return {
+                id: userCredential.user.uid,
+                ...userDocument
+            };
+        } catch (error: any) {
+            console.error('Register error:', error);
+            if (error.code === 'auth/email-already-in-use') {
+                throw new Error('Bu e-posta adresi zaten kullanımda');
+            } else if (error.code === 'auth/weak-password') {
+                throw new Error('Şifre en az 6 karakter olmalıdır');
+            } else if (error.code === 'auth/invalid-email') {
+                throw new Error('Geçersiz e-posta adresi');
+            }
+            throw error;
+        }
+    },
+
+    // Tüm kullanıcıları getir
+    async getAllUsers(): Promise<UserDocument[]> {
+        try {
+            const usersQuery = query(collection(db, 'users'));
+            const querySnapshot = await getDocs(usersQuery);
+            
+            const users: UserDocument[] = [];
+            querySnapshot.forEach((doc) => {
+                users.push({
+                    id: doc.id,
+                    ...doc.data()
+                } as UserDocument);
+            });
+            
+            return users;
+        } catch (error) {
+            console.error('Get all users error:', error);
+            throw error;
+        }
+    },
+
+    // Kullanıcı bilgilerini güncelle
+    async updateUser(userId: string, userData: UpdateUserInput): Promise<UserDocument> {
+        try {
+            const updateData: Partial<UserDocument> = {
+                ...(userData.name && { name: userData.name }),
+                ...(userData.role && { role: userData.role }),
+                ...(typeof userData.phone !== 'undefined' && { phone: userData.phone || '' }),
+                ...(typeof userData.depot !== 'undefined' && { depot: userData.depot }),
+                ...(userData.avatar && { avatar: userData.avatar }),
+                ...(typeof userData.isActive !== 'undefined' && { isActive: userData.isActive }),
+                updatedAt: new Date().toISOString()
+            };
+            
+            if (userData.role) {
+                updateData.canEdit = ['admin', 'user', 'proje_admin'].includes(userData.role);
+            }
+            
+            await updateDoc(doc(db, 'users', userId), updateData);
+            
+            const updatedUserDoc = await getDoc(doc(db, 'users', userId));
+            
+            if (!updatedUserDoc.exists()) {
+                throw new Error('Kullanıcı bulunamadı');
+            }
+
+            const updatedData: UserDocument = {
+                id: userId,
+                email: updatedUserDoc.data()?.email || '',
+                name: updatedUserDoc.data()?.name || '',
+                role: updatedUserDoc.data()?.role || 'user',
+                isActive: updatedUserDoc.data()?.isActive || false,
+                createdAt: updatedUserDoc.data()?.createdAt || new Date().toISOString(),
+                lastLogin: updatedUserDoc.data()?.lastLogin || new Date().toISOString(),
+                phone: updatedUserDoc.data()?.phone || '',
+                depot: updatedUserDoc.data()?.depot || null,
+                avatar: updatedUserDoc.data()?.avatar || '/assets/images/profile-2.jpeg',
+                canEdit: updatedUserDoc.data()?.canEdit || false
+            };
+
+            return updatedData;
+        } catch (error) {
+            console.error('Update user error:', error);
+            throw error;
+        }
+    },
+
+    // Kullanıcı sil
+    async deleteUser(userId: string): Promise<boolean> {
+        try {
+            await deleteDoc(doc(db, 'users', userId));
+            return true;
+        } catch (error) {
+            console.error('Delete user error:', error);
+            throw error;
+        }
+    },
+
+    // Kullanıcı ile ilgili diğer işlemler
+    async getUserById(userId: string): Promise<UserDocument> {
+        const userDoc = await getDoc(doc(db, 'users', userId));
+        if (!userDoc.exists()) {
+            throw new Error('Kullanıcı bulunamadı');
+        }
+        return {
+            id: userId,
+            email: userDoc.data().email || '',
+            name: userDoc.data().name || '',
+            role: userDoc.data().role || 'user',
+            isActive: userDoc.data().isActive || false,
+            createdAt: userDoc.data().createdAt || new Date().toISOString(),
+            lastLogin: userDoc.data().lastLogin || new Date().toISOString(),
+            phone: userDoc.data().phone || '',
+            depot: userDoc.data().depot || null,
+            avatar: userDoc.data().avatar || '/assets/images/profile-2.jpeg',
+            canEdit: userDoc.data().canEdit || false
+        };
+    }
+}
+
+// Kullanıcıyı UID ile getiren bir metod ekliyoruz
+async function getUserByUid(uid: string): Promise<UserDocument | null> {
+    try {
+        const users = await userService.getAllUsers(); // Tüm kullanıcıları alıyoruz
+        return users.find(user => user.id === uid) || null; // UID ile eşleşen kullanıcıyı döndürüyoruz
+    } catch (error) {
+        console.error('getUserByUid error:', error);
+        throw error;
+    }
+}
+
+export { getUserByUid };
