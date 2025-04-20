@@ -50,7 +50,7 @@ const isOpen = ref(false);
 // Projeleri ve mevcut projeyi almak için computed değerleri
 const projects = computed(() => projectStore.projects);
 const currentProject = computed(() => projectStore.activeProject);
-const isAdmin = computed(() => authStore.isAdmin() || authStore.isProjectAdmin());
+const isAdmin = computed(() => authStore.isAdmin || authStore.isProjectAdmin);
 
 // Dropdown'ı aç/kapa
 const toggleDropdown = () => {

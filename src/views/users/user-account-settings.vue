@@ -238,10 +238,10 @@ onMounted(() => {
         formData.email = authStore.userInfo.email || '';
         formData.role = authStore.userInfo.role || '';
         formData.phone = authStore.userInfo.phone || '';
-        formData.warehouse = authStore.userInfo.warehouse || '';
+        formData.warehouse = (authStore.userInfo as any).warehouse || '';
         formData.avatar = authStore.userInfo.avatar || '';
         formData.lastLogin = authStore.userInfo.lastLogin || '';
-        formData.permissionLevel = authStore.userInfo.permissionLevel || '';
+        formData.permissionLevel = (authStore.userInfo as any).permissionLevel || '';
 
         // Düzenlenebilir form verilerini de doldur
         editableFormData.name = authStore.userInfo.name || '';

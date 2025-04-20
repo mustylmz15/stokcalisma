@@ -29,8 +29,7 @@
         "src/**/*.ts",
         "src/**/*.d.ts",
         "src/**/*.tsx",
-        "src/**/*.vue",
-        "vite.config.ts" // Vite yapılandırma dosyası eklendi
+        "src/**/*.vue"
     ],
     "exclude": ["node_modules", "dist"], // Derleme dışında tutulacak klasörler eklendi
     "references": [
