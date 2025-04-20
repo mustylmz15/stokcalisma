@@ -1,0 +1,371 @@
+// Firebase entegrasyonu
+import { db } from '@/firebase';
+import { 
+    doc, 
+    collection, 
+    getDocs, 
+    getDoc,
+    setDoc,
+    addDoc,
+    updateDoc,
+    deleteDoc,
+    query,
+    where,
+    serverTimestamp,
+    runTransaction
+} from 'firebase/firestore';
+
+// Uygulama genelinde kullanılacak veri depoları
+let categories = [];
+let warehouses = [];
+let products = [];
+let stocks = [];
+let movements = [];
+let isInitialized = false;
+
+// Veri yükleme ve yönetim fonksiyonları
+const inventoryService = {
+    // Tüm verileri yükle ve başlat
+    async initializeData() {
+        if (isInitialized) return;
+        
+        try {
+            const [categoriesData, warehousesData, productsData, stocksData, movementsData] = await Promise.all([
+                this.getAllCategories(),
+                this.getAllWarehouses(),
+                this.getAllProducts(),
+                this.getAllStocks(),
+                this.getAllMovements()
+            ]);
+            
+            categories = categoriesData;
+            warehouses = warehousesData;
+            products = productsData;
+            stocks = stocksData;
+            movements = movementsData;
+            
+            isInitialized = true;
+            console.log('Inventory data loaded from Firebase');
+        } catch (error) {
+            console.error('Error loading inventory data:', error);
+            throw error;
+        }
+    },
+    
+    // Kategoriler
+    async getAllCategories() {
+        try {
+            const querySnapshot = await getDocs(collection(db, 'categories'));
+            const data = [];
+            querySnapshot.forEach((doc) => {
+                data.push({ id: doc.id, ...doc.data() });
+            });
+            categories = data;
+            return data;
+        } catch (error) {
+            console.error('Error getting categories:', error);
+            throw error;
+        }
+    },
+    
+    async addCategory(categoryData) {
+        try {
+            const docRef = await addDoc(collection(db, 'categories'), {
+                ...categoryData,
+                createdAt: serverTimestamp()
+            });
+            const newCategory = { id: docRef.id, ...categoryData };
+            categories.push(newCategory);
+            return newCategory;
+        } catch (error) {
+            console.error('Error adding category:', error);
+            throw error;
+        }
+    },
+    
+    async updateCategory(id, categoryData) {
+        try {
+            const categoryRef = doc(db, 'categories', id);
+            await updateDoc(categoryRef, {
+                ...categoryData,
+                updatedAt: serverTimestamp()
+            });
+            const updatedCategory = { id, ...categoryData };
+            const index = categories.findIndex(c => c.id === id);
+            if (index !== -1) {
+                categories[index] = updatedCategory;
+            }
+            return updatedCategory;
+        } catch (error) {
+            console.error('Error updating category:', error);
+            throw error;
+        }
+    },
+    
+    async deleteCategory(id) {
+        try {
+            await deleteDoc(doc(db, 'categories', id));
+            const index = categories.findIndex(c => c.id === id);
+            if (index !== -1) {
+                categories.splice(index, 1);
+            }
+            return true;
+        } catch (error) {
+            console.error('Error deleting category:', error);
+            throw error;
+        }
+    },
+    
+    // Depolar
+    async getAllWarehouses() {
+        try {
+            const querySnapshot = await getDocs(collection(db, 'warehouses'));
+            const data = [];
+            querySnapshot.forEach((doc) => {
+                data.push({ id: doc.id, ...doc.data() });
+            });
+            warehouses = data;
+            return data;
+        } catch (error) {
+            console.error('Error getting warehouses:', error);
+            throw error;
+        }
+    },
+    
+    async addWarehouse(warehouseData) {
+        try {
+            const docRef = await addDoc(collection(db, 'warehouses'), {
+                ...warehouseData,
+                createdAt: serverTimestamp()
+            });
+            const newWarehouse = { id: docRef.id, ...warehouseData };
+            warehouses.push(newWarehouse);
+            return newWarehouse;
+        } catch (error) {
+            console.error('Error adding warehouse:', error);
+            throw error;
+        }
+    },
+    
+    async updateWarehouse(id, warehouseData) {
+        try {
+            const warehouseRef = doc(db, 'warehouses', id);
+            await updateDoc(warehouseRef, {
+                ...warehouseData,
+                updatedAt: serverTimestamp()
+            });
+            const updatedWarehouse = { id, ...warehouseData };
+            const index = warehouses.findIndex(w => w.id === id);
+            if (index !== -1) {
+                warehouses[index] = updatedWarehouse;
+            }
+            return updatedWarehouse;
+        } catch (error) {
+            console.error('Error updating warehouse:', error);
+            throw error;
+        }
+    },
+    
+    async deleteWarehouse(id) {
+        try {
+            await deleteDoc(doc(db, 'warehouses', id));
+            const index = warehouses.findIndex(w => w.id === id);
+            if (index !== -1) {
+                warehouses.splice(index, 1);
+            }
+            return true;
+        } catch (error) {
+            console.error('Error deleting warehouse:', error);
+            throw error;
+        }
+    },
+    
+    // Ürünler
+    async getAllProducts() {
+        try {
+            const querySnapshot = await getDocs(collection(db, 'products'));
+            const data = [];
+            querySnapshot.forEach((doc) => {
+                data.push({ id: doc.id, ...doc.data() });
+            });
+            products = data;
+            return data;
+        } catch (error) {
+            console.error('Error getting products:', error);
+            throw error;
+        }
+    },
+    
+    async addProduct(productData) {
+        try {
+            const docRef = await addDoc(collection(db, 'products'), {
+                ...productData,
+                createdAt: serverTimestamp()
+            });
+            const newProduct = { id: docRef.id, ...productData };
+            products.push(newProduct);
+            return newProduct;
+        } catch (error) {
+            console.error('Error adding product:', error);
+            throw error;
+        }
+    },
+    
+    async updateProduct(id, productData) {
+        try {
+            const productRef = doc(db, 'products', id);
+            await updateDoc(productRef, {
+                ...productData,
+                updatedAt: serverTimestamp()
+            });
+            const updatedProduct = { id, ...productData };
+            const index = products.findIndex(p => p.id === id);
+            if (index !== -1) {
+                products[index] = updatedProduct;
+            }
+            return updatedProduct;
+        } catch (error) {
+            console.error('Error updating product:', error);
+            throw error;
+        }
+    },
+    
+    async deleteProduct(id) {
+        try {
+            await deleteDoc(doc(db, 'products', id));
+            const index = products.findIndex(p => p.id === id);
+            if (index !== -1) {
+                products.splice(index, 1);
+            }
+            return true;
+        } catch (error) {
+            console.error('Error deleting product:', error);
+            throw error;
+        }
+    },
+    
+    // Stoklar
+    async getAllStocks() {
+        try {
+            const querySnapshot = await getDocs(collection(db, 'stocks'));
+            const data = [];
+            querySnapshot.forEach((doc) => {
+                data.push({ id: doc.id, ...doc.data() });
+            });
+            stocks = data;
+            return data;
+        } catch (error) {
+            console.error('Error getting stocks:', error);
+            throw error;
+        }
+    },
+    
+    async updateStock(productId, quantity, warehouseId, type, description) {
+        try {
+            const stockRef = doc(db, 'stocks', `${productId}_${warehouseId}`);
+            
+            await runTransaction(db, async (transaction) => {
+                const stockDoc = await transaction.get(stockRef);
+                const currentQuantity = stockDoc.exists() ? stockDoc.data().quantity || 0 : 0;
+                const newQuantity = type === 'in' ? currentQuantity + quantity : currentQuantity - quantity;
+                
+                if (type === 'out' && newQuantity < 0) {
+                    throw new Error('Yetersiz stok miktarı');
+                }
+                
+                transaction.set(stockRef, {
+                    productId,
+                    warehouseId,
+                    quantity: newQuantity,
+                    lastUpdated: serverTimestamp()
+                }, { merge: true });
+                
+                // Hareket kaydı
+                const movementRef = doc(collection(db, 'movements'));
+                transaction.set(movementRef, {
+                    productId,
+                    sourceWarehouseId: warehouseId,
+                    targetWarehouseId: type === 'transfer' ? description : null,
+                    quantity,
+                    type,
+                    description,
+                    date: new Date().toISOString(),
+                    timestamp: serverTimestamp(),
+                    previousQuantity: currentQuantity,
+                    newQuantity: newQuantity
+                });
+            });
+            
+            // Stok verilerini yeniden yükle
+            await this.getAllStocks();
+            await this.getAllMovements();
+            
+            return true;
+        } catch (error) {
+            console.error('Error updating stock:', error);
+            throw error;
+        }
+    },
+    
+    // Hareketler
+    async getAllMovements() {
+        try {
+            const querySnapshot = await getDocs(collection(db, 'movements'));
+            const data = [];
+            querySnapshot.forEach((doc) => {
+                data.push({ id: doc.id, ...doc.data() });
+            });
+            movements = data;
+            return data;
+        } catch (error) {
+            console.error('Error getting movements:', error);
+            throw error;
+        }
+    },
+    
+    async addMovement(movementData) {
+        try {
+            // Stok kontrolü
+            if (movementData.type === 'out' || movementData.type === 'transfer') {
+                const currentStock = stocks.find(
+                    s => s.productId === movementData.productId && 
+                         s.warehouseId === movementData.sourceWarehouseId
+                );
+                
+                if (!currentStock || currentStock.quantity < movementData.quantity) {
+                    const error = new Error('Yetersiz stok');
+                    error.code = 'INSUFFICIENT_STOCK';
+                    error.details = {
+                        currentStock: currentStock?.quantity || 0,
+                        requestedQuantity: movementData.quantity
+                    };
+                    throw error;
+                }
+            }
+            
+            // Hareket numarası oluştur
+            const movementNumber = `MOV-${Date.now()}`;
+            
+            // Hareket kaydı ekle
+            const docRef = await addDoc(collection(db, 'movements'), {
+                ...movementData,
+                movementNumber,
+                timestamp: serverTimestamp()
+            });
+            
+            // Stok güncelle
+            if (movementData.type === 'in') {
+                await this.updateStock(
+                    movementData.productId,
+                    movementData.quantity,
+                    movementData.sourceWarehouseId,
+                    'in',
+                    movementData.description
+                );
+            } else if (movementData.type === 'out') {
+                await this.updateStock(
+                    movementData.productId,
+                    movementData.quantity,
+                    movementData.sourceWarehouseId,
+                    'out',
+                    movementData.description
