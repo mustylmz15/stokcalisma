@@ -1,4 +1,6 @@
 import { createApp } from 'vue';
+import { useToast } from 'vue-toastification';
+
 import App from '@/App.vue';
 
 // Pinia entegrasyonu
@@ -17,37 +19,47 @@ const pinia = createPinia();
 pinia.use(piniaPluginPersistedstate);
 app.use(pinia);
 
-// Firebase servisleri ve store'ları import et
-import { userService } from '@/services/userService';
+// Firebase servislerini import et
 import inventoryService from '@/services/inventoryService';
 
-// Auth durumunu kontrol et - Firebase Authentication kullanılacak
-// localStorage kullanımını kaldırıyoruz
-let currentUser = null;
+import { useAuthStore } from './stores/auth-store';
+import { useProjectStore } from './stores/projects';
 
-// Firebase Auth state listener kullanıcı oturum durumunu kontrol edecek
 // Firebase kimlik doğrulama durumunu dinle
 onAuthStateChanged(auth, async (user) => {
+    const authStore = useAuthStore();
+    const projectStore = useProjectStore();
+
+    // Auth store'un başlatıldığından emin olalım
+    await authStore.initializeStore();
+
+    // Oturum açmış kullanıcı için işlemleri yapalım
     if (user) {
-        console.log('Kullanıcı oturum açmış durumda:', user.email);
-        
-        // Envanter verilerini yükle
-        try {
-            // Doğrudan servis üzerinden verileri yükle
-            // initializeData fonksiyonu olmadığı için temel verileri çekerek işlemi gerçekleştiriyoruz
-            await Promise.all([
-                inventoryService.getAllCategories(),
-                inventoryService.getAllProducts(),
-                inventoryService.getAllWarehouses(),
-                inventoryService.getAllStocks()
-            ]);
-            console.log('Firebase\'den envanter verileri yüklendi');
-            console.log('Offline persistence etkin, internet bağlantısı olmadığında da veriler kullanılabilir olacak');
-        } catch (error) {
-            console.error('Envanter verilerini yükleme hatası:', error);
+        // Kullanıcının tüm verilerinin yüklenmesi için gerekli kod
+        await projectStore.initializeStore();
+
+        if (authStore.isLoggedIn) {
+            const toast = useToast();
+            try {
+                // Envanter verilerini yükle
+                await Promise.all([
+                    inventoryService.getAllCategories(),
+                    inventoryService.getAllProducts(),
+                    inventoryService.getAllWarehouses(),
+                    inventoryService.getAllStocks()
+                ]);
+                console.log('Firebase\'den envanter verileri yüklendi');
+                console.log('Offline persistence etkin, internet bağlantısı olmadığında da veriler kullanılabilir olacak');
+            } catch (error) {
+                console.error('Envanter verilerini yükleme hatası:', error);
+                toast.error('Envanter verileri yüklenirken bir hata oluştu. Lütfen daha sonra tekrar deneyiniz.');
+            }
         }
-    } else {
-        console.log('Kullanıcı oturum açmamış');
+    }
+
+    // Auth store'un yüklendiğine emin olalım
+    if(!authStore.authReady){
+        authStore.authReady = true;
     }
 });
 

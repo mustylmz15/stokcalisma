@@ -101,6 +101,11 @@ onMounted(async () => {
     
     if (!projectStore.isInitialized) {
         try {
+            // Kullanıcı projelerini yüklerken isProjectsLoading değerini aktif et
+            isProjectsLoading.value = true;
+            
+            // Tüm projeler veya kullanıcı projelerini yükle
+            await projectStore.loadUserProjects();
             await projectStore.initializeStore();
         } catch (error) {
             console.error('Projeler yüklenirken hata oluştu:', error);
@@ -120,8 +125,13 @@ onBeforeUnmount(() => {
 // Proje seçme fonksiyonu
 const selectProject = async (project) => {
     try {
+        // Projeyi değiştirirken loading yap
+        isProjectsLoading.value = true;
+        
         await projectStore.setActiveProject(project.id);
-        await authStore.setActiveProject(project.id);
+        
+        // Eğer proje sayısı 0 ise proje yönetim sayfasına git
+        if (projects.value.length === 0) return navigateToProjects();
         
         // Envanter bilgilerini projeye göre filtrele
         const inventoryStore = useInventoryStore();
@@ -132,6 +142,8 @@ const selectProject = async (project) => {
         
         isDropdownOpen.value = false;
     } catch (error) {
+        isProjectsLoading.value = false;
+        
         console.error('Proje değiştirirken hata:', error);
     }
 };

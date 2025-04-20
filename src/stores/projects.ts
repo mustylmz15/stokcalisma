@@ -56,7 +56,7 @@ export const useProjectStore = defineStore('projects', () => {
         
         try {
             // Kullanıcının projelerini yükle
-            await loadUserProjects();
+            await loadUserProjects()
             
             // Eğer aktif proje yoksa ve en az bir proje varsa, ilk projeyi aktif yap
             if (!activeProject.value && projects.value.length > 0) {
@@ -83,9 +83,9 @@ export const useProjectStore = defineStore('projects', () => {
             let userProjects: Project[] = [];
             
             if (authStore.isAdmin) {
-                userProjects = await projectService.getAllProjects();
-            } else {
                 userProjects = await projectService.getUserProjects(authStore.userInfo.id);
+            } else {
+                 userProjects = await projectService.getUserProjects(authStore.userInfo.id);
             }
             
             projects.value = userProjects;
@@ -99,11 +99,13 @@ export const useProjectStore = defineStore('projects', () => {
     }
     
     function setActiveProject(projectId: string) {
-        const project = projects.value.find(p => p.id === projectId);
-        
-        if (project) {
-            activeProject.value = project;
-            localStorage.setItem('activeProjectId', project.id);
+        if(projectId){
+            const project = projects.value.find(p => p.id === projectId);
+            
+            if (project) {
+                activeProject.value = project;
+                localStorage.setItem('activeProjectId', project.id);
+            }
         } else {
             console.warn(`Project with ID ${projectId} not found`);
         }
@@ -315,38 +317,30 @@ export const useProjectStore = defineStore('projects', () => {
         }
     }
     
-    // Kullanıcının bir projedeki rolünü kontrol et
-    function checkProjectRole(projectId: string, allowedRoles: string[]): boolean {
-        if (!authStore.userInfo) return false;
-        
-        // Admin her şeyi yapabilir
-        if (authStore.isAdmin) return true;
-        
-        // Projeyi bul
-        const project = projects.value.find(p => p.id === projectId);
-        if (!project || !project.users) return false;
-        
-        // Kullanıcının bu projedeki rolünü bul
-        const userInProject = project.users.find(u => u.userId === authStore.userInfo!.id);
-        if (!userInProject) return false;
-        
-        // Rolü kontrol et
-        return allowedRoles.includes(userInProject.role);
-    }
-    
     async function hasProjectRole(projectId: string, allowedRoles: string[]): Promise<boolean> {
         if (!authStore.userInfo) return false;
         
         // Admin her şeyi yapabilir
         if (authStore.isAdmin) return true;
         
+        // Rol kontrolü
+        const project = projects.value.find(p => p.id === projectId);
+        if(project && project.users){
+             // Kullanıcının bu projedeki rolünü bul
+             const userInProject = project.users.find(u => u.userId === authStore.userInfo!.id);
+             if(userInProject){
+                return allowedRoles.includes(userInProject.role);
+             }
+        }
+
         try {
             const userRole = await projectService.getUserProjectRole(authStore.userInfo.id, projectId);
             
-            if (!userRole) return false;
-            
-            return allowedRoles.includes(userRole);
-        } catch (err) {
+            if (userRole){
+                return allowedRoles.includes(userRole);
+            }else return false;
+           
+        } catch (err) { 
             console.error('Check project role error:', err);
             return false;
         }
@@ -411,7 +405,6 @@ export const useProjectStore = defineStore('projects', () => {
         updateUserProjectRole,
         addWarehouseToProject,
         removeWarehouseFromProject,
-        checkProjectRole,
         hasProjectRole,
         hasActiveProjectRole,
         switchProject,

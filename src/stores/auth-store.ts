@@ -167,8 +167,7 @@ export const useAuthStore = defineStore('auth', {
 
         // Auth listener'ı başlat - düzenleme yaptım
         initAuthListener() {
-            // Eğer zaten hazırsa ve dinleyici varsa tekrar başlatma
-            if (this.authReady && this.authUnsubscribe) return;
+            if (this.authUnsubscribe) return;
             
             // Varolan bir listener varsa önce temizle
             this.cleanupAuthListener();
@@ -203,6 +202,7 @@ export const useAuthStore = defineStore('auth', {
                     localStorage.removeItem('token');
                 }
             });
+            this.authReady = true; // Auth state'ini hazır olarak işaretle
             
             return true;
         },
@@ -240,6 +240,9 @@ export const useAuthStore = defineStore('auth', {
                 return true;
             } catch (error) {
                 console.error('Oturum kontrolünde hata:', error);
+                this.isLoggedIn = false;
+                this.userInfo = null;
+
                 return false;
             }
         },
@@ -354,15 +357,8 @@ export const useAuthStore = defineStore('auth', {
         // Aktif projeyi değiştir
         async setActiveProject(projectId: string) {
             this.currentProjectId = projectId;
-            try {
-                const { useProjectStore } = await import('./projects');
-                const projectStore = useProjectStore();
-                projectStore.setActiveProject(projectId);
-            } catch (error) {
-                console.error('Set active project error:', error);
-            }
         },
-
+        
         // Kullanıcının bir projede belirli bir rolü olup olmadığını kontrol et
         async hasProjectRole(projectId: string, roles: string | string[]): Promise<boolean> {
             if (!this.userInfo) return false;
@@ -562,11 +558,6 @@ export const useAuthStore = defineStore('auth', {
                 return [];
             }
         },
-
-        // Users store'dan kullanıcıları senkronize et
-        syncUsersFromUsersStore(users: UserDocument[]): void {
-            // Senkronizasyon işlemi gerekli değil çünkü users store zaten Firebase ile senkronize
-            console.log('Users store senkronizasyonu atlandı - Firebase ile direkt senkronizasyon kullanılıyor');
-        }
+        
     }
 });
