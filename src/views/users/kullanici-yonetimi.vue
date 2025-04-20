@@ -173,7 +173,8 @@
                                 <icon-x />
                             </button>
                         </div>
-                        <div class="p-5">
+                        <!-- Modal içeriğine kaydırma ekle -->
+                        <div class="p-5 overflow-y-auto max-h-[80vh]">
                             <form @submit.prevent="kullaniciKaydet">
                                 <div class="mb-5">
                                     <label for="email">Email <span class="text-danger">*</span></label>
@@ -197,18 +198,42 @@
                                     <input id="sifre" type="password" placeholder="Şifre" class="form-input" v-model="yeniKullanici.password" :required="!duzenlemeModu" />
                                     <span v-if="formHatalari.password" class="text-danger">{{ formHatalari.password }}</span>
                                 </div>
+
+                                <!-- YENİ PROJE SEÇİM ALANI -->
                                 <div class="mb-5">
-                                    <label for="project">Bağlı Olduğu Proje <span class="text-danger">*</span></label>
-                                    <select id="project" class="form-select" v-model="yeniKullanici.projectId" required :disabled="!projeler || projeler.length === 0">
-                                        <option v-if="!projeler || projeler.length === 0" value="" disabled>Proje bulunamadı</option>
-                                        <option v-else value="" disabled>Proje Seçiniz</option>
-                                        <option v-for="proje in projeler" :key="proje.id" :value="proje.id">
-                                            {{ proje.name }}
-                                        </option>
-                                    </select>
-                                    <span v-if="formHatalari.projectId" class="text-danger">{{ formHatalari.projectId }}</span>
-                                    <span v-if="!projeler || projeler.length === 0" class="text-warning text-sm">Hiç proje bulunamadı. Önce proje eklemeniz gerekiyor.</span>
+                                    <label>Bağlı Olduğu Projeler <span class="text-danger">*</span></label>
+
+                                    <!-- Seçilmiş Projeler Listesi -->
+                                    <div class="border border-gray-300 dark:border-gray-700 rounded-md p-2 min-h-[60px] mb-2 bg-gray-100 dark:bg-gray-800">
+                                        <p v-if="secilmisProjeler.length === 0" class="text-sm text-gray-500 dark:text-gray-400">Henüz proje seçilmedi.</p>
+                                        <div v-else v-for="proje in secilmisProjeler" :key="'selected-' + proje.id" class="flex items-center justify-between bg-white dark:bg-gray-700 p-1 px-2 rounded mb-1 shadow-sm">
+                                            <span>
+                                                {{ proje.name }}
+                                                <span v-if="!proje.isActive" class="text-xs text-warning">(Pasif)</span>
+                                            </span>
+                                            <button type="button" @click="projeKaldir(proje.id)" class="text-danger hover:text-red-700" title="Projeyi Kaldır">
+                                                <icon-trash class="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Seçilebilir Projeler Listesi -->
+                                    <label class="text-sm text-gray-600 dark:text-gray-400 mb-1 block">Eklenebilecek Projeler:</label>
+                                    <div class="border border-gray-300 dark:border-gray-700 rounded-md p-2 max-h-40 overflow-y-auto">
+                                        <p v-if="projeYukleniyor" class="text-sm text-gray-500">Projeler yükleniyor...</p>
+                                        <p v-else-if="secilebilirProjeler.length === 0 && projeler.length > 0" class="text-sm text-gray-500">Tüm aktif projeler seçilmiş.</p>
+                                        <p v-else-if="projeler.length === 0 && !projeYukleniyor" class="text-sm text-warning">Hiç proje bulunamadı.</p>
+                                        <div v-else v-for="proje in secilebilirProjeler" :key="'available-' + proje.id" class="flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800 p-1 px-2 rounded mb-1">
+                                            <span>{{ proje.name }}</span>
+                                            <button type="button" @click="projeEkle(proje.id)" class="text-success hover:text-green-700" title="Projeyi Ekle">
+                                                <icon-plus class="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <span v-if="formHatalari.projectIds" class="text-danger text-sm mt-1">{{ formHatalari.projectIds }}</span>
                                 </div>
+                                <!-- /YENİ PROJE SEÇİM ALANI -->
+
                                 <div class="mb-5">
                                     <label for="role">Kullanıcı Tipi <span class="text-danger">*</span></label>
                                     <select id="role" class="form-select" v-model="yeniKullanici.role" required :disabled="duzenlemeModu && yeniKullanici.email === 'deneme@deneme.com'">
@@ -235,7 +260,7 @@
                                         <span>Aktif</span>
                                     </label>
                                 </div>
-                                <div class="flex justify-end items-center mt-8">
+                                <div class="flex justify-end items-center mt-8 sticky bottom-0 bg-white dark:bg-gray-900 py-3 px-5 -mx-5 -mb-5 border-t border-gray-200 dark:border-gray-800">
                                     <button type="button" class="btn btn-outline-danger ltr:mr-2 rtl:ml-2" @click="showModal = false">İptal</button>
                                     <button type="submit" class="btn btn-primary">Kaydet</button>
                                 </div>
@@ -310,9 +335,9 @@ async function loadProjectService() {
 }
 
 // İkon Bileşenleri
-import IconPlus from '@/components/icon/icon-plus.vue';
+import IconPlus from '@/components/icon/icon-plus.vue'; // Ekleme ikonu için
 import IconPencil from '@/components/icon/icon-pencil.vue';
-import IconTrash from '@/components/icon/icon-trash.vue';
+import IconTrash from '@/components/icon/icon-trash.vue'; // Kaldırma ikonu için
 import IconX from '@/components/icon/icon-x.vue';
 import IconArrowLeft from '@/components/icon/icon-arrow-left.vue';
 import IconArrowForward from '@/components/icon/icon-arrow-forward.vue';
@@ -373,7 +398,8 @@ const silinecekKullanici = ref<ValidUser>({
 
 // Interface değişikliği - ValidUser türü genişletiliyor (kullanıcı-yonetimi.vue'den)
 interface UserWithProject extends ValidUser {
-    projectId?: string; // Kullanıcının bağlı olduğu proje ID'si
+    projectId?: string; // Geriye dönük uyumluluk için
+    projectIds: string[]; // Kullanıcının bağlı olduğu projelerin ID'leri (birden fazla proje seçimi için)
     depot?: string | null;
 }
 
@@ -389,7 +415,8 @@ const yeniKullanici = ref<UserWithProject>({
     lastLogin: '',
     avatar: '/assets/images/profile-34.jpeg',
     phone: '',
-    projectId: '', // Burada ekleniyor
+    projectId: '', // Geriye dönük uyumluluk için
+    projectIds: [], // Birden fazla proje seçimi için
     depot: null
 });
 
@@ -438,6 +465,38 @@ const projeleriYukle = async () => {
     }
 };
 
+// Seçilebilecek projeler (henüz seçilmemiş olanlar)
+const secilebilirProjeler = computed(() => {
+    return projeler.value.filter(proje =>
+        proje.isActive && // Sadece aktif projeler seçilebilir olsun
+        !yeniKullanici.value.projectIds.includes(proje.id)
+    );
+});
+
+// Seçilmiş projeler (tam proje nesneleri)
+const secilmisProjeler = computed(() => {
+    return projeler.value.filter(proje =>
+        yeniKullanici.value.projectIds.includes(proje.id)
+    );
+});
+
+// Proje ekleme metodu
+const projeEkle = (projeId: string) => {
+    if (!yeniKullanici.value.projectIds.includes(projeId)) {
+        yeniKullanici.value.projectIds.push(projeId);
+        // Form hatasını temizle (varsa)
+        if (formHatalari.value.projectIds) {
+            delete formHatalari.value.projectIds;
+        }
+    }
+};
+
+// Proje kaldırma metodu
+const projeKaldir = (projeId: string) => {
+    yeniKullanici.value.projectIds = yeniKullanici.value.projectIds.filter(id => id !== projeId);
+};
+
+
 // Form doğrulama - projectId validation içeriyor
 const formuDogrula = () => {
     const hatalar: FormHatalari = {};
@@ -463,11 +522,9 @@ const formuDogrula = () => {
     // Şifre validasyonu
     if (!duzenlemeModu.value && !yeniKullanici.value.password) {
         hatalar['password'] = 'Şifre zorunludur';
-    }
-
-    // Proje validasyonu
-    if (!yeniKullanici.value.projectId) {
-        hatalar['projectId'] = 'Proje seçimi zorunludur';
+    }    // Proje validasyonu - en az bir proje seçilmeli
+    if (!yeniKullanici.value.projectIds || yeniKullanici.value.projectIds.length === 0) {
+        hatalar['projectIds'] = 'En az bir proje seçilmelidir';
     }
 
     // Kullanıcı tipi validasyonu
@@ -548,23 +605,68 @@ const filtrelenmisKullanicilar = computed(() => {
     }
 });
 
-// Kullanıcı düzenleme fonksiyonu düzeltme (tip güvenliğini artırdık)
-const kullaniciDuzenle = (kullanici: ValidUser): void => {
+// Kullanıcı düzenleme fonksiyonu - Firebase'den güncel proje bilgilerini çekecek şekilde iyileştirildi
+const kullaniciDuzenle = async (kullanici: ValidUser): Promise<void> => {
     duzenlemeModu.value = true;
-    
+
     // Boş değerleri kontrol et
     const kullaniciVeritipi = kullanici as any;
     const projectId = kullaniciVeritipi.projectId || '';
     const depot = kullaniciVeritipi.depot || null;
-    
+
+    // Firebase'den en güncel kullanıcı verilerini almak için kullanıcı listesinden buluyoruz
+    let guncelKullanici = null;
+    let userProjectIds: string[] = [];
+
+    try {
+        if (kullanici.id) {
+            // Tüm kullanıcıları al ve ID'ye göre filtreleme yap
+            const allUsers = await authStore.getAllUsers();
+            guncelKullanici = allUsers.find(user => user.id === kullanici.id);
+            console.log("Firebase'den gelen güncel kullanıcı verileri:", guncelKullanici);
+            
+            // Doğrudan Firebase'den kullanıcı projelerini çek (yeni eklediğimiz metodu kullanıyoruz)
+            userProjectIds = await authStore.getUserProjects(kullanici.id);
+            console.log(`Firebase'den çekilen kullanıcı projeleri: ${userProjectIds.length} adet`, userProjectIds);
+        }
+    } catch (error) {
+        console.error("Kullanıcı verileri güncellenirken hata:", error);
+    }
+
+    // Hiç proje bulunamadıysa diğer yöntemleri dene
+    if (userProjectIds.length === 0) {
+        // Güncel kullanıcıdan projectIds verisini çek
+        if (guncelKullanici && (guncelKullanici as UserWithProject).projectIds && Array.isArray((guncelKullanici as UserWithProject).projectIds)) {
+            userProjectIds = [...(guncelKullanici as UserWithProject).projectIds];
+        }
+        // Eğer güncel kullanıcıdan alınamadıysa mevcut veriyi kontrol et
+        else if (kullaniciVeritipi.projectIds && Array.isArray(kullaniciVeritipi.projectIds)) {
+            userProjectIds = [...kullaniciVeritipi.projectIds];
+        }
+        // Geriye dönük uyumluluk için - tek bir projectId varsa onu da ekle
+        else if (projectId) {
+            userProjectIds = [projectId];
+        }
+    }
+
+    console.log("Düzenleme için kullanıcının projeleri:", userProjectIds);
+
     yeniKullanici.value = {
-        ...kullanici,
-        avatar: kullanici.avatar || '/assets/images/profile-34.jpeg',
+        email: kullanici.email,
+        id: kullanici.id,
+        canEdit: kullanici.canEdit,
         password: '',
-        projectId: projectId,
+        name: kullanici.name || '',
+        role: kullanici.role,
+        isActive: kullanici.isActive,
+        lastLogin: kullanici.lastLogin,
+        avatar: kullanici.avatar || '/assets/images/profile-34.jpeg',
+        phone: kullanici.phone || '',
+        projectId: projectId, // Geriye dönük uyumluluk için
+        projectIds: userProjectIds, // Çoklu proje seçimi için
         depot: depot
     };
-    
+
     formHatalari.value = {};
     showModal.value = true;
 };
@@ -578,12 +680,20 @@ const kullaniciKaydet = async () => {
 
     try {
         yukleniyor.value = true;
-        
+
         // Kullanıcı tipi depo sorumlusu ise ve depo seçilmemişse hata ver
         if ((yeniKullanici.value.role === 'user' || yeniKullanici.value.role === 'depo_sorumlusu') && !yeniKullanici.value.depot) {
             store.showMessage('Depo sorumlusu için depo seçimi zorunludur', 'error');
             yukleniyor.value = false;
             return;
+        }
+
+    // projectService yüklenmemişse yükle
+        if (!projectService.value) {
+            const loaded = await loadProjectService();
+            if (!loaded) {
+                store.showMessage('Proje servisi yüklenemedi, proje atamaları yapılamayabilir.', 'warning');
+            }
         }
 
         // Düzenleme modu kontrolü
@@ -605,19 +715,35 @@ const kullaniciKaydet = async () => {
                 return;
             }
             
-            // Kullanıcı güncelleme - proje ID'sini de ekle
+            // Kullanıcının mevcut proje ID'lerini al (güncelleme öncesi)
+            let mevcutProjeIdleri: string[] = [];
+            try {
+                // Kullanıcıyı tekrar çekerek en güncel projectIds'i alalım
+                const allUsers = await authStore.getAllUsers();
+                const guncelKullaniciData = allUsers.find(user => user.id === yeniKullanici.value.id);
+                if (guncelKullaniciData && Array.isArray((guncelKullaniciData as UserWithProject).projectIds)) {
+                    mevcutProjeIdleri = [...(guncelKullaniciData as UserWithProject).projectIds];
+                }
+            } catch (fetchError) {
+                console.error("Güncelleme öncesi kullanıcı projeleri alınamadı:", fetchError);
+                // Opsiyonel: Hata durumunda işlemi durdurabilir veya devam edebiliriz. Şimdilik devam ediyoruz.
+            }
+            
+            // Kullanıcı güncelleme - proje ID'lerini de ekle
             const updateData: any = {
                 name: yeniKullanici.value.name,
                 role: yeniKullanici.value.role,
                 isActive: yeniKullanici.value.isActive,
-                projectId: yeniKullanici.value.projectId || null
+                phone: yeniKullanici.value.phone || '', // Telefonu ekle
+                projectIds: yeniKullanici.value.projectIds || [], // Proje ID'lerini ekle
+                // projectId: yeniKullanici.value.projectId || null // Eski projectId'yi kaldırabilir veya null yapabiliriz, projectIds kullanıldığı için
             };
-            
+
             // Conditional fields
             if (yeniKullanici.value.password) {
                 updateData.password = yeniKullanici.value.password;
             }
-            
+
             if (yeniKullanici.value.role === 'user' || yeniKullanici.value.role === 'depo_sorumlusu') {
                 updateData.depot = yeniKullanici.value.depot;
             } else {
@@ -627,6 +753,9 @@ const kullaniciKaydet = async () => {
             const sonuc = await authStore.updateUser(yeniKullanici.value.email, updateData);
 
             if (sonuc.success) {
+                // Kullanıcı dokümanı güncellendi, şimdi userProjects koleksiyonunu senkronize et
+                await kullaniciProjeIliskileriniGuncelle(yeniKullanici.value.id, yeniKullanici.value.projectIds, mevcutProjeIdleri);
+                
                 store.showMessage('Kullanıcı başarıyla güncellendi', 'success');
                 showModal.value = false;
                 // Kullanıcı listesini yenile
@@ -635,7 +764,7 @@ const kullaniciKaydet = async () => {
                 store.showMessage(sonuc.message || 'Kullanıcı güncellenirken bir hata oluştu', 'error');
             }
         } else {
-            // Yeni kullanıcı ekleme - daha güvenli bir şekilde
+            // Yeni kullanıcı ekleme - çoklu proje seçimi için güncellendi
             const userData: any = {
                 id: '',
                 canEdit: true,
@@ -648,17 +777,30 @@ const kullaniciKaydet = async () => {
                 createdAt: new Date().toISOString(),
                 avatar: '/assets/images/profile-34.jpeg',
                 phone: yeniKullanici.value.phone || '',
-                projectId: yeniKullanici.value.projectId || null
+                projectIds: yeniKullanici.value.projectIds || [], // Çoklu proje seçimi
+                // projectId: ... // Eski projectId'yi kaldırabiliriz
             };
             
             // Sadece depo sorumlusu ise depot değerini ekle
             if (yeniKullanici.value.role === 'user' || yeniKullanici.value.role === 'depo_sorumlusu') {
                 userData.depot = yeniKullanici.value.depot;
-            }
-
-            const sonuc = await authStore.addUser(userData);
+            }            const sonuc = await authStore.addUser(userData);
 
             if (sonuc.success) {
+                // Kullanıcı başarıyla oluşturuldu, şimdi userProjects ilişkilerini güncelle
+                if (sonuc.user?.id) {
+                    // Eklenen kullanıcının ID'si ile proje ilişkilerini oluştur
+                    try {
+                        await kullaniciProjeIliskileriniGuncelle(sonuc.user.id, yeniKullanici.value.projectIds);
+                        console.log(`Yeni kullanıcı ${sonuc.user.id} için proje ilişkileri oluşturuldu`);
+                    } catch (projeError) {
+                        console.error('Proje ilişkileri oluşturulurken hata:', projeError);
+                        store.showMessage('Kullanıcı eklendi ancak proje ilişkileri oluşturulurken hata oluştu', 'warning');
+                    }
+                } else {
+                    console.warn('Kullanıcı ekleme başarılı oldu ancak userId dönmedi, proje ilişkileri kurulamadı');
+                }
+                
                 store.showMessage('Kullanıcı başarıyla eklendi', 'success');
                 showModal.value = false;
                 // Kullanıcı listesini yenile
@@ -713,7 +855,7 @@ onMounted(async () => {
     }
 });
 
-// Yeni kullanıcı eklerken proje değişkeninin sıfırlanması - düzeltilmiş
+// Yeni kullanıcı eklerken proje değişkeninin sıfırlanması - çoklu proje seçimi için güncellendi
 const yeniKullaniciEkle = () => {
     duzenlemeModu.value = false;
     yeniKullanici.value = {
@@ -728,7 +870,8 @@ const yeniKullaniciEkle = () => {
         avatar: '/assets/images/profile-34.jpeg',
         phone: '',
         depot: null,
-        projectId: projeler.value.length > 0 ? projeler.value[0].id : '' // Varsayılan ilk projeyi seç
+        projectId: '', // Geriye dönük uyumluluk için boş bırakıyoruz
+        projectIds: [] // Çoklu proje seçimi için boş array
     };
     formHatalari.value = {};
     showModal.value = true;
@@ -799,6 +942,52 @@ const kullaniciTipiGetir = (tip: string): string => {
         case 'proje_admin': return 'Proje Yöneticisi';
         case 'ariza_merkez': return 'Arıza Merkezi';
         default: return tip;
+    }
+};
+
+// Kullanıcı-Proje ilişkilerini güncelleyen yardımcı fonksiyon
+const kullaniciProjeIliskileriniGuncelle = async (userId: string, yeniProjeIdleri: string[], eskiProjeIdleri: string[] = []) => {
+    if (!projectService.value || !userId) {
+        console.error('projectService yüklenmemiş veya userId boş');
+        return; 
+    }
+
+    console.log(`Kullanıcı-proje ilişkileri güncelleniyor. UserId: ${userId}`);
+    console.log('Eski projeler:', eskiProjeIdleri);
+    console.log('Yeni projeler:', yeniProjeIdleri);
+
+    const eklenecekler = yeniProjeIdleri.filter(id => !eskiProjeIdleri.includes(id));
+    const kaldirilacaklar = eskiProjeIdleri.filter(id => !yeniProjeIdleri.includes(id));
+
+    console.log('Eklenecek projeler:', eklenecekler);
+    console.log('Kaldırılacak projeler:', kaldirilacaklar);
+
+    // Rol olarak kullanıcının ana rolünü kullan 
+    // (proje içinde daha spesifik bir rol yapısı oluşturabilirsiniz)
+    const userRole = yeniKullanici.value.role || 'user'; 
+
+    // Eklenecek projeler için işlemleri yap
+    for (const projectId of eklenecekler) {
+        try {
+            await projectService.value.addUserToProject(userId, projectId, userRole);
+            console.log(`Kullanıcı ${userId}, proje ${projectId}'e eklendi.`);
+        } catch (error) {
+            console.error(`Kullanıcı ${userId}, proje ${projectId}'e eklenirken hata:`, error);
+            store.showMessage(`Kullanıcı proje ${projectId}'e eklenirken hata oluştu.`, 'error');
+            // Hata durumunda devam et, diğerlerini deneyelim
+        }
+    }
+
+    // Kaldırılacak projeler için işlemleri yap
+    for (const projectId of kaldirilacaklar) {
+        try {
+            await projectService.value.removeUserFromProject(userId, projectId);
+            console.log(`Kullanıcı ${userId}, proje ${projectId}'den kaldırıldı.`);
+        } catch (error) {
+            console.error(`Kullanıcı ${userId}, proje ${projectId}'den kaldırılırken hata:`, error);
+            store.showMessage(`Kullanıcı proje ${projectId}'den kaldırılırken hata oluştu.`, 'error');
+            // Hata durumunda devam et
+        }
     }
 };
 </script>

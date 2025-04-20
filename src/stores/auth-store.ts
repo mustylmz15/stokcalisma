@@ -1,9 +1,8 @@
 import { defineStore } from 'pinia';
-import { getUserByUid } from '@/services/userService';
 import { DocumentData } from 'firebase/firestore';
 import { auth } from '@/firebase';
 import { onAuthStateChanged, Unsubscribe } from 'firebase/auth';
-import { userService } from '@/services/userService';
+import { userService, getUserProjects } from '@/services/userService';
 
 // Login için kullanılacak interface
 export interface LoginCredentials {
@@ -179,12 +178,12 @@ export const useAuthStore = defineStore('auth', {
             this.authUnsubscribe = onAuthStateChanged(auth, async (user) => {
                 if (user) {
                     // Kullanıcı bilgilerini yükle
+                    // Kullanıcı bilgilerini yükle
                     try {
-                        const userData = await getUserByUid(user.uid);
+                        const userData = await userService.getUserById(user.uid);
                         if (userData) {
                             this.isLoggedIn = true;
                             this.userInfo = userData as UserDocument;
-                            // Kullanıcı bilgilerini localStorage'a kaydet
                             localStorage.setItem('user', JSON.stringify(this.userInfo));
                         } else {
                             this.isLoggedIn = false;
@@ -243,8 +242,7 @@ export const useAuthStore = defineStore('auth', {
                 return false;
             }
         },
-        
-        // Login işlemi
+          // Login işlemi - kullanıcı projelerini doğrudan yükleme kodu eklendi
         async login(email, password) {
             try {
                 // Önce normal şekilde login fonksiyonunu çağırıyoruz
@@ -283,6 +281,27 @@ export const useAuthStore = defineStore('auth', {
                 // Başarılı giriş sonrası, kullanıcı bilgilerini localStorage'a kaydet
                 localStorage.setItem('user', JSON.stringify(this.userInfo));
                 localStorage.setItem('token', token);
+                
+                // YENİ: Kullanıcı projelerini hemen yüklemeye başla
+                console.log('Giriş başarılı - kullanıcı projelerini yüklüyor...');
+                
+                try {
+                    // Kullanıcı admin değilse ve ID'si varsa, projelerini doğrudan Firebase'den çek
+                    if (user.role !== 'admin' && user.id) {
+                        console.log(`Kullanıcı ${user.id} (${user.email}) projeleri yükleniyor...`);
+                        const userProjects = await this.getUserProjects(user.id);
+                        console.log(`Kullanıcı için ${userProjects.length} proje bulundu: `, userProjects);
+                        
+                        // Projeleri yüklemeyi başlat
+                        await this.initializeUserProjects();
+                    } else {
+                        // Admin için tüm projeleri yükle
+                        await this.initializeUserProjects();
+                    }
+                } catch (projError) {
+                    console.error('Kullanıcı projeleri yüklenirken hata:', projError);
+                    // Hata olsa bile giriş başarılı olsun, sadece projelerde sorun var
+                }
                 
                 return { success: true };
             } catch (error) {
@@ -330,9 +349,7 @@ export const useAuthStore = defineStore('auth', {
             } catch (error) {
                 console.error('Reset project data error:', error);
             }
-        },
-
-        // Kullanıcının projelerini yükle
+        },        // Kullanıcının projelerini yükle - Firebase'den doğrudan kullanıcı projelerini çekecek şekilde iyileştirildi
         async initializeUserProjects() {
             if (!this.userInfo) return;
             
@@ -340,11 +357,32 @@ export const useAuthStore = defineStore('auth', {
                 // Project store'u dinamik olarak yükleyip başlatıyoruz
                 const { useProjectStore } = await import('./projects');
                 const projectStore = useProjectStore();
-                await projectStore.initializeStore();
+                
+                // Admin için tüm projeleri yükle
+                if (this.isAdmin) {
+                    await projectStore.initializeStore();
+                } 
+                // Normal kullanıcı için - kullanıcının yetkili olduğu projeleri yükle
+                else {
+                    console.log(`Kullanıcı projeleri yükleniyor: ${this.userInfo.id} (${this.userInfo.email})`);
+                    
+                    // Kullanıcı projelerini doğrudan Firebase'den çek
+                    const userProjects = await this.getUserProjects(this.userInfo.id);
+                    console.log(`Kullanıcı için ${userProjects.length} proje bulundu:`, userProjects);
+                    
+                    // Kullanıcının yetkili olduğu projelerle store'u başlat
+                    await projectStore.initializeStore(userProjects);
+                }
                 
                 // Aktif proje bilgisini güncelle
                 if (projectStore.activeProject) {
                     this.currentProjectId = projectStore.activeProject.id;
+                }
+                
+                // Hiç aktif proje yoksa ve kullanıcı projesi varsa, ilkini aktif yap
+                else if (projectStore.projects && projectStore.projects.length > 0) {
+                    this.currentProjectId = projectStore.projects[0].id;
+                    projectStore.setActiveProject(projectStore.projects[0].id);
                 }
             } catch (error) {
                 console.error('Initialize user projects error:', error);
@@ -485,14 +523,20 @@ export const useAuthStore = defineStore('auth', {
         // Kullanıcı güncelleme
         async updateUser(email: string, updatedUser: UpdateUserData): Promise<UserResponse> {
             try {
-                const users = await userService.getAllUsers();
-                const user = users.find(u => u.email === email);
+                // Tüm kullanıcıları çekmek yerine doğrudan e-posta ile kullanıcıyı bul
+                const user = await userService.getUserByEmail(email);
 
                 if (!user) {
                     return { success: false, message: 'Kullanıcı bulunamadı' };
                 }
 
-                const result = await userService.updateUser(user.id, updatedUser);
+                // Convert null projectId to undefined to match UpdateUserInput type
+                const userDataForUpdate = {
+                    ...updatedUser,
+                    projectId: updatedUser.projectId === null ? undefined : updatedUser.projectId
+                };
+                
+                const result = await userService.updateUser(user.id, userDataForUpdate);
 
                 if (this.userInfo && this.userInfo.email === email && result) {
                     // Tip güvenliği için sonucu any olarak işaretleyip sonra doğru şekilde dönüştürüyoruz
@@ -567,6 +611,24 @@ export const useAuthStore = defineStore('auth', {
         syncUsersFromUsersStore(users: UserDocument[]): void {
             // Senkronizasyon işlemi gerekli değil çünkü users store zaten Firebase ile senkronize
             console.log('Users store senkronizasyonu atlandı - Firebase ile direkt senkronizasyon kullanılıyor');
+        },
+
+        /**
+         * Kullanıcının bağlı olduğu projeleri getirir
+         * @param userId Kullanıcı ID'si
+         * @returns Kullanıcının bağlı olduğu proje ID'leri
+         */
+        async getUserProjects(userId: string): Promise<string[]> {
+            try {
+                if (!userId) {
+                    console.error('getUserProjects: userId parametresi gereklidir');
+                    return [];
+                }
+                return await getUserProjects(userId);
+            } catch (error) {
+                console.error('Kullanıcı projeleri alınırken hata:', error);
+                return [];
+            }
         }
     }
 });

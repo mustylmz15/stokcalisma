@@ -17,10 +17,7 @@ import {
     deleteDoc,
     query,
     where,
-    writeBatch,
-    serverTimestamp,
-    Timestamp,
-    limit
+    serverTimestamp
 } from 'firebase/firestore';
 
 // Uygulama genelinde kullanılacak kullanıcı verisi
@@ -221,170 +218,69 @@ export const userService = {
             }
             throw error;
         }
-    },    // Tüm kullanıcıları getir - optimize edildi
+    },
+
+    // Tüm kullanıcıları getir
     async getAllUsers(): Promise<UserDocument[]> {
         try {
-            // Daha basit sorgu yapısı ve batch işlemi kullanarak
-            // Firebase'in iç tutarsızlık yaşamasını önleyelim
-            const usersCollectionRef = collection(db, 'users');
-            
-            // Sorguları limit ile yaparak veri miktarını sınırlayalım
-            // (çok fazla kullanıcı olduğunda performans sorunlarını önler)
-            const querySnapshot = await getDocs(usersCollectionRef);
+            const usersQuery = query(collection(db, 'users'));
+            const querySnapshot = await getDocs(usersQuery);
             
             const users: UserDocument[] = [];
-            
-            if (!querySnapshot.empty) {
-                querySnapshot.forEach((doc) => {
-                    if (doc.exists()) {
-                        const userData = doc.data();
-                        users.push({
-                            id: doc.id,
-                            email: userData.email || '',
-                            name: userData.name || '',
-                            role: userData.role || 'user',
-                            isActive: userData.isActive !== undefined ? userData.isActive : true,
-                            createdAt: userData.createdAt || new Date().toISOString(),
-                            lastLogin: userData.lastLogin || '',
-                            phone: userData.phone || '',
-                            depot: userData.depot || null,
-                            avatar: userData.avatar || '/assets/images/profile-2.jpeg',
-                            canEdit: userData.canEdit !== undefined ? userData.canEdit : false,
-                            projectIds: userData.projectIds || []
-                        } as UserDocument);
-                    }
-                });
-            }
+            querySnapshot.forEach((doc) => {
+                users.push({
+                    id: doc.id,
+                    ...doc.data()
+                } as UserDocument);
+            });
             
             return users;
         } catch (error) {
             console.error('Get all users error:', error);
-            // Hatayı fırlatmak yerine boş dizi döndürerek
-            // uygulamanın çalışmaya devam etmesini sağlayalım
-            return [];
+            throw error;
         }
-    },
-    
-    // Kullanıcı bilgilerini güncelle
+    },    // Kullanıcı bilgilerini güncelle
     async updateUser(userId: string, userData: UpdateUserInput): Promise<UserDocument> {
         try {
-            // Önce kullanıcının var olduğunu kontrol et
-            const userRef = doc(db, 'users', userId);
-            const userDoc = await getDoc(userRef);
-            
-            if (!userDoc.exists()) {
-                throw new Error('Kullanıcı bulunamadı');
-            }
-
-            const now = new Date().toISOString();
-            // Daha güvenli bir şekilde verileri hazırlayalım (serileştirme sorunlarını önlemek için)
-            const updateData: Record<string, any> = {
-                updatedAt: now
+            const updateData: Partial<UserDocument> = {
+                ...(userData.name && { name: userData.name }),
+                ...(userData.role && { role: userData.role }),
+                ...(typeof userData.phone !== 'undefined' && { phone: userData.phone || '' }),
+                ...(typeof userData.depot !== 'undefined' && { depot: userData.depot }),
+                ...(userData.avatar && { avatar: userData.avatar }),
+                ...(typeof userData.isActive !== 'undefined' && { isActive: userData.isActive }),
+                ...(typeof userData.projectId !== 'undefined' && { projectId: userData.projectId }),
+                ...(Array.isArray(userData.projectIds) && { projectIds: userData.projectIds }),
+                updatedAt: new Date().toISOString()
             };
             
-            // Her bir alanı ayrı ayrı kontrol edelim, güvenli bir şekilde ekleyelim
-            if (userData.name !== undefined) {
-                updateData.name = userData.name;
-            }
-            
-            if (userData.role !== undefined) {
-                updateData.role = userData.role;
+            if (userData.role) {
                 updateData.canEdit = ['admin', 'user', 'proje_admin'].includes(userData.role);
             }
             
-            if (typeof userData.phone !== 'undefined') {
-                updateData.phone = userData.phone || '';
-            }
+            await updateDoc(doc(db, 'users', userId), updateData);
             
-            if (typeof userData.depot !== 'undefined') {
-                updateData.depot = userData.depot;
-            }
-              if (userData.avatar !== undefined) {
-                updateData.avatar = userData.avatar;
-            }
+            const updatedUserDoc = await getDoc(doc(db, 'users', userId));
             
-            if (typeof userData.isActive !== 'undefined') {
-                updateData.isActive = userData.isActive;
+            if (!updatedUserDoc.exists()) {
+                throw new Error('Kullanıcı bulunamadı');
             }
-              if (userData.projectIds !== undefined) {
-                try {
-                    // Serileştirme sorunu olmadığından emin olmak için JSON serileştirip tekrar çözümleme yap
-                    if (Array.isArray(userData.projectIds)) {
-                        // Önce JSON olarak serileştirip tekrar parse ederek yeniden oluştur (döngüsel referansları temizler)
-                        let cleanProjectIds;
-                        try {
-                            cleanProjectIds = JSON.parse(JSON.stringify(userData.projectIds));
-                        } catch (jsonError) {
-                            console.error('projectIds JSON serileştirme hatası:', jsonError);
-                            cleanProjectIds = [];
-                        }
 
-                        // Dizi içindeki tüm değerlerin primitive olduğundan emin ol
-                        const safeProjectIds = cleanProjectIds
-                            .filter(id => typeof id === 'string' && id.trim() !== '')
-                            // Sadece string değerleri al ve trim yap
-                            .map(id => String(id).trim());
-                        
-                        // Boş stringler olmasın
-                        updateData.projectIds = safeProjectIds.filter(id => id !== '');
-                    } else {
-                        // Dizi değilse boş dizi ata
-                        updateData.projectIds = [];
-                    }
-                } catch (err) {
-                    console.error('projectIds serileştirme hatası:', err);
-                    updateData.projectIds = [];
-                }
-            }
-              if (userData.projectId !== undefined) {
-                // projectId'nin string olduğundan emin olalım
-                if (typeof userData.projectId === 'string' || userData.projectId === null) {
-                    updateData.projectId = userData.projectId;
-                } else if (userData.projectId) {
-                    // Eğer string değilse ama bir değer varsa, string'e çevirelim
-                    updateData.projectId = String(userData.projectId);
-                } else {
-                    // Değer yoksa null atalım
-                    updateData.projectId = null;
-                }
-            }
-              // Güncelleme verilerini son kez kontrol et
-            console.log('Güncellenecek veriler:', JSON.stringify(updateData));
-              try {
-                // Doğrudan güncelleme işlemini gerçekleştir
-                await updateDoc(userRef, updateData);
-            } catch (error: any) {
-                console.error('Firebase güncelleme hatası:', error);
-                // Hatanın nedenini bulalım
-                if (error.toString().includes('serializing')) {
-                    throw new Error('Veriler serileştirilemedi: ' + error.message);
-                }
-                throw error;
-            }
-            
-            // Güncellenmiş son veriyi al
-            const updatedUserDoc = await getDoc(userRef);
-            const updatedData = updatedUserDoc.data();            // Güvenli bir kullanıcı nesnesi oluştur
-            const safeUserData = {
+            const updatedData: UserDocument = {
                 id: userId,
-                email: updatedData?.email || '',
-                name: updatedData?.name || '',
-                role: updatedData?.role || 'user',
-                isActive: updatedData?.isActive ?? false,
-                createdAt: updatedData?.createdAt || now,
-                lastLogin: updatedData?.lastLogin || now,
-                phone: updatedData?.phone || '',
-                depot: updatedData?.depot || null,
-                avatar: updatedData?.avatar || '/assets/images/profile-2.jpeg',
-                canEdit: updatedData?.canEdit ?? false,
-                updatedAt: now,
-                projectId: updatedData?.projectId || null,
-                projectIds: Array.isArray(updatedData?.projectIds) ? 
-                    updatedData.projectIds.filter(id => typeof id === 'string') : []
+                email: updatedUserDoc.data()?.email || '',
+                name: updatedUserDoc.data()?.name || '',
+                role: updatedUserDoc.data()?.role || 'user',
+                isActive: updatedUserDoc.data()?.isActive || false,
+                createdAt: updatedUserDoc.data()?.createdAt || new Date().toISOString(),
+                lastLogin: updatedUserDoc.data()?.lastLogin || new Date().toISOString(),
+                phone: updatedUserDoc.data()?.phone || '',
+                depot: updatedUserDoc.data()?.depot || null,
+                avatar: updatedUserDoc.data()?.avatar || '/assets/images/profile-2.jpeg',
+                canEdit: updatedUserDoc.data()?.canEdit || false
             };
-            
-            return safeUserData;
 
+            return updatedData;
         } catch (error) {
             console.error('Update user error:', error);
             throw error;
@@ -395,13 +291,12 @@ export const userService = {
     async deleteUser(userId: string): Promise<boolean> {
         try {
             await deleteDoc(doc(db, 'users', userId));
-            return true;        } catch (error) {
+            return true;
+        } catch (error) {
             console.error('Delete user error:', error);
             throw error;
         }
-    },
-    
-    // Kullanıcı ile ilgili diğer işlemler
+    },    // Kullanıcı ile ilgili diğer işlemler
     async getUserById(userId: string): Promise<UserDocument> {
         const userDoc = await getDoc(doc(db, 'users', userId));
         if (!userDoc.exists()) {
@@ -425,65 +320,74 @@ export const userService = {
         };
     },
 
-    // E-posta ile kullanıcıyı getir
-    async getUserByEmail(email: string): Promise<UserDocument | null> {
+    /**
+     * Kullanıcının bağlı olduğu projeleri getirir - iyileştirilmiş sürüm
+     * @param userId Kullanıcı ID'si
+     * @returns Kullanıcının bağlı olduğu proje ID'leri
+     */
+    async getUserProjects(userId: string): Promise<string[]> {
         try {
-            if (!email) return null;
-            const usersQuery = query(collection(db, 'users'), where('email', '==', email), limit(1));
-            const querySnapshot = await getDocs(usersQuery);
-            if (!querySnapshot.empty) {
-                const docSnap = querySnapshot.docs[0];
-                return { id: docSnap.id, ...docSnap.data() } as UserDocument;
+            if (!userId) {
+                console.error('getUserProjects: userId boş olamaz');
+                return [];
             }
-            return null;
+
+            // userProjects koleksiyonundan kullanıcı projelerini al - en güvenilir kaynak burasıdır
+            const userProjectsRef = collection(db, 'userProjects');
+            const q = query(userProjectsRef, where('userId', '==', userId));
+            const querySnapshot = await getDocs(q);
+            
+            const projectIds: string[] = [];
+            querySnapshot.forEach((doc) => {
+                if (doc.data().projectId) {
+                    projectIds.push(doc.data().projectId);
+                }
+            });
+            
+            // Eğer userProjects koleksiyonunda veri bulunduysa onu kullan
+            if (projectIds.length > 0) {
+                console.log(`userProjects koleksiyonundan ${userId} ID'li kullanıcı için ${projectIds.length} proje bulundu:`, projectIds);
+                
+                // Kullanıcı dokümanında da projectIds alanını güncelle - senkronizasyon için önemli
+                try {
+                    await updateDoc(doc(db, 'users', userId), {
+                        projectIds: projectIds
+                    });
+                    console.log(`${userId} ID'li kullanıcının users koleksiyonundaki projectIds alanı güncellendi`);
+                } catch (updateError) {
+                    console.error(`${userId} ID'li kullanıcının projectIds alanı güncellenirken hata:`, updateError);
+                    // Güncelleme hatası olsa bile projeleri döndürmeye devam et
+                }
+                
+                return projectIds;
+            }
+            
+            // Eğer userProjects koleksiyonunda veri yoksa, users koleksiyonundaki projectIds alanını kontrol et
+            const userDoc = await getDoc(doc(db, 'users', userId));
+            if (userDoc.exists() && userDoc.data()?.projectIds && Array.isArray(userDoc.data()?.projectIds)) {
+                const userDocProjectIds = userDoc.data().projectIds;
+                console.log(`users koleksiyonundan ${userId} ID'li kullanıcı için ${userDocProjectIds.length} proje bulundu:`, userDocProjectIds);
+                return userDocProjectIds;
+            }
+            
+            console.log(`${userId} ID'li kullanıcı için hiçbir koleksiyonda bağlı proje bulunamadı`);
+            return [];
         } catch (error) {
-            console.error('getUserByEmail error:', error);
-            return null;
+            console.error('Kullanıcı projeleri alınırken hata:', error);
+            return [];
         }
     }
 }
 
-/**
- * Kullanıcının bağlı olduğu projeleri getirir
- * @param userId Kullanıcı ID'si
- * @returns Kullanıcının bağlı olduğu proje ID'leri
- */
-async function getUserProjects(userId: string): Promise<string[]> {
+// Kullanıcıyı UID ile getiren bir metod ekliyoruz
+async function getUserByUid(uid: string): Promise<UserDocument | null> {
     try {
-        if (!userId) {
-            console.error('getUserProjects: userId boş olamaz');
-            return [];
-        }
-
-        // 1. Önce users koleksiyonundaki projectIds alanını kontrol edelim
-        const userDoc = await getDoc(doc(db, 'users', userId));
-        if (userDoc.exists() && userDoc.data()?.projectIds && Array.isArray(userDoc.data()?.projectIds)) {
-            return userDoc.data()?.projectIds;
-        }
-
-        // 2. userProjects koleksiyonundan kullanıcı projelerini alalım
-        const userProjectsRef = collection(db, 'userProjects');
-        const q = query(userProjectsRef, where('userId', '==', userId));
-        const querySnapshot = await getDocs(q);
-        
-        if (querySnapshot.empty) {
-            console.log(`${userId} ID'li kullanıcı için bağlı proje bulunamadı`);
-            return [];
-        }
-        
-        const projectIds: string[] = [];
-        querySnapshot.forEach((doc) => {
-            if (doc.data().projectId) {
-                projectIds.push(doc.data().projectId);
-            }
-        });
-        
-        console.log(`${userId} ID'li kullanıcı için ${projectIds.length} proje bulundu:`, projectIds);
-        return projectIds;
+        const users = await userService.getAllUsers(); // Tüm kullanıcıları alıyoruz
+        return users.find(user => user.id === uid) || null; // UID ile eşleşen kullanıcıyı döndürüyoruz
     } catch (error) {
-        console.error('Kullanıcı projeleri alınırken hata:', error);
+        console.error('getUserByUid error:', error);
         throw error;
     }
 }
 
-export { getUserProjects };
+export { getUserByUid };
