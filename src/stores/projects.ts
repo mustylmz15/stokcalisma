@@ -46,17 +46,27 @@ export const useProjectStore = defineStore('projects', () => {
             return p.isActive && p.users && p.users.some(u => u.userId === authStore.userInfo?.id);
         });
     });
-    
-    // Actions
-    async function initializeStore() {
-        if (!authStore.isLoggedIn || isInitialized.value) return;
+      // Actions
+    // initializeStore fonksiyonunu güncelliyoruz - belirli projeleri yüklemek için parametre eklendi
+    async function initializeStore(projectIds?: string[]) {
+        if (!authStore.isLoggedIn) return;
+        
+        // Zaten yüklendiyse ve özel bir projectIds listesi verilmediyse yeniden yükleme
+        if (isInitialized.value && !projectIds) return;
         
         loading.value = true;
         error.value = null;
         
         try {
-            // Kullanıcının projelerini yükle
-            await loadUserProjects()
+            // Eğer belirli proje ID'leri verildiyse, onları kullan
+            if (projectIds && projectIds.length > 0) {
+                console.log(`Belirli projeler yükleniyor: ${projectIds.length} adet`);
+                await loadSpecificProjects(projectIds);
+            } else {
+                // Normal yükleme - kullanıcı projelerini yükle
+                console.log('Normal proje yükleme işlemi başlatılıyor');
+                await loadUserProjects();
+            }
             
             // Eğer aktif proje yoksa ve en az bir proje varsa, ilk projeyi aktif yap
             if (!activeProject.value && projects.value.length > 0) {
@@ -93,6 +103,31 @@ export const useProjectStore = defineStore('projects', () => {
         } catch (err: any) {
             error.value = err.message || 'Projeler yüklenirken hata oluştu';
             console.error('Load projects error:', err);
+        } finally {
+            loading.value = false;
+        }
+    }
+    
+    // Belirli proje ID'lerine göre projeleri yükle (kullanıcı için özel olarak)
+    async function loadSpecificProjects(projectIds: string[]) {
+        if (!projectIds || projectIds.length === 0) return;
+        
+        loading.value = true;
+        error.value = null;
+        
+        try {
+            // Tüm projeleri al ve filtreleme yap
+            const allProjects = await projectService.getAllProjects();
+            
+            // Sadece verilen ID'lere sahip projeleri filtrele
+            projects.value = allProjects.filter(project => 
+                projectIds.includes(project.id)
+            );
+            
+            console.log(`${projects.value.length} proje yüklendi (${projectIds.length} arasından)`);
+        } catch (err: any) {
+            error.value = err.message || 'Projeler yüklenirken hata oluştu';
+            console.error('Load specific projects error:', err);
         } finally {
             loading.value = false;
         }

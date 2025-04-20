@@ -235,27 +235,37 @@ class ProjectService {
             throw error;
         }
     }
-    
-    // Kullanıcı projeye ekle
+      // Kullanıcı projeye ekle
     async addUserToProject(userId: string, projectId: string, role: string): Promise<boolean> {
         try {
-            // Önce bu kullanıcı-proje ilişkisi var mı kontrol et
+            if (!userId || !projectId) {
+                console.error('addUserToProject: userId veya projectId boş olamaz');
+                return false;
+            }
+            
+            // İki sorgu yerine composite (bileşik) sorgu kullanmak yerine 
+            // sadece userId'ye göre sorgu yapıp, sonuçları JavaScript'te filtreleyelim
             const userProjectQuery = query(
                 this.userProjectsCollection, 
-                where('userId', '==', userId),
-                where('projectId', '==', projectId)
+                where('userId', '==', userId)
             );
             const querySnapshot = await getDocs(userProjectQuery);
             
-            if (!querySnapshot.empty) {
+            // Bu kullanıcının bu projesi var mı kontrol et
+            const existingUserProject = querySnapshot.docs.find(
+                doc => doc.data().projectId === projectId
+            );
+            
+            if (existingUserProject) {
                 // İlişki zaten var, rolü güncelle
-                const userProjectDoc = querySnapshot.docs[0];
-                await updateDoc(doc(this.userProjectsCollection, userProjectDoc.id), {
+                console.log(`Kullanıcı ${userId} için ${projectId} projesi ilişkisi güncelleniyor`);
+                await updateDoc(doc(this.userProjectsCollection, existingUserProject.id), {
                     role,
                     updatedAt: Timestamp.now()
                 });
             } else {
                 // Yeni ilişki ekle
+                console.log(`Kullanıcı ${userId} için ${projectId} projesi ilişkisi oluşturuluyor`);
                 await addDoc(this.userProjectsCollection, {
                     userId,
                     projectId,
@@ -267,31 +277,43 @@ class ProjectService {
             return true;
         } catch (error) {
             console.error('Kullanıcı projeye eklenirken hata oluştu:', error);
-            throw error;
+            return false; // Hata durumunda null değil false döndürüyoruz
         }
     }
     
     // Kullanıcıyı projeden çıkar
     async removeUserFromProject(userId: string, projectId: string): Promise<boolean> {
         try {
+            if (!userId || !projectId) {
+                console.error('removeUserFromProject: userId veya projectId boş olamaz');
+                return false;
+            }
+            
+            // Composite query yerine sadece userId'ye göre sorgula
             const userProjectQuery = query(
                 this.userProjectsCollection, 
-                where('userId', '==', userId),
-                where('projectId', '==', projectId)
+                where('userId', '==', userId)
             );
             const querySnapshot = await getDocs(userProjectQuery);
             
-            if (querySnapshot.empty) {
+            // Bu kullanıcının bu projesi var mı kontrol et
+            const existingUserProject = querySnapshot.docs.find(
+                doc => doc.data().projectId === projectId
+            );
+            
+            if (!existingUserProject) {
+                console.log(`Kullanıcı ${userId} için ${projectId} projesi ilişkisi bulunamadı`);
                 return false;
             }
             
             // İlişki dokümanını sil
-            await deleteDoc(doc(this.userProjectsCollection, querySnapshot.docs[0].id));
+            console.log(`Kullanıcı ${userId} için ${projectId} projesi ilişkisi siliniyor`);
+            await deleteDoc(doc(this.userProjectsCollection, existingUserProject.id));
             
             return true;
         } catch (error) {
             console.error('Kullanıcı projeden çıkarılırken hata oluştu:', error);
-            throw error;
+            return false; // Hata durumunda null değil false döndürüyoruz
         }
     }
     
