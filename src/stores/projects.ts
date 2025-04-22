@@ -88,14 +88,25 @@ export const useProjectStore = defineStore('projects', () => {
         loading.value = true;
         error.value = null;
         
-        try {
-            // Admin ise tüm projeleri, değilse sadece kullanıcının projelerini yükle
+        try {            // Admin ise tüm projeleri, değilse sadece kullanıcının projelerini yükle
             let userProjects: Project[] = [];
             
-            if (authStore.isAdmin) {
-                userProjects = await projectService.getUserProjects(authStore.userInfo.id);
-            } else {
-                 userProjects = await projectService.getUserProjects(authStore.userInfo.id);
+            try {
+                if (authStore.isAdmin) {
+                    // Admin kullanıcılar için tüm projeleri getir
+                    userProjects = await projectService.getAllProjects();
+                } else {
+                    // Normal kullanıcılar için sadece kendi projelerini getir
+                    userProjects = await projectService.getUserProjects(authStore.userInfo.id);
+                }
+                
+                // Boş veya hatalı projeler olmamasını sağla
+                userProjects = userProjects.filter(project => 
+                    project && project.id && typeof project.id === 'string'
+                );
+            } catch (err) {
+                console.error('Kullanıcı projeleri yüklenirken hata:', err);
+                userProjects = []; // Hata durumunda boş dizi kullan
             }
             
             projects.value = userProjects;

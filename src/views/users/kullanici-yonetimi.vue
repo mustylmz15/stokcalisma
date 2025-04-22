@@ -197,42 +197,7 @@
                                     </label>
                                     <input id="sifre" type="password" placeholder="Şifre" class="form-input" v-model="yeniKullanici.password" :required="!duzenlemeModu" />
                                     <span v-if="formHatalari.password" class="text-danger">{{ formHatalari.password }}</span>
-                                </div>
-
-                                <!-- YENİ PROJE SEÇİM ALANI -->
-                                <div class="mb-5">
-                                    <label>Bağlı Olduğu Projeler <span class="text-danger">*</span></label>
-
-                                    <!-- Seçilmiş Projeler Listesi -->
-                                    <div class="border border-gray-300 dark:border-gray-700 rounded-md p-2 min-h-[60px] mb-2 bg-gray-100 dark:bg-gray-800">
-                                        <p v-if="secilmisProjeler.length === 0" class="text-sm text-gray-500 dark:text-gray-400">Henüz proje seçilmedi.</p>
-                                        <div v-else v-for="proje in secilmisProjeler" :key="'selected-' + proje.id" class="flex items-center justify-between bg-white dark:bg-gray-700 p-1 px-2 rounded mb-1 shadow-sm">
-                                            <span>
-                                                {{ proje.name }}
-                                                <span v-if="!proje.isActive" class="text-xs text-warning">(Pasif)</span>
-                                            </span>
-                                            <button type="button" @click="projeKaldir(proje.id)" class="text-danger hover:text-red-700" title="Projeyi Kaldır">
-                                                <icon-trash class="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <!-- Seçilebilir Projeler Listesi -->
-                                    <label class="text-sm text-gray-600 dark:text-gray-400 mb-1 block">Eklenebilecek Projeler:</label>
-                                    <div class="border border-gray-300 dark:border-gray-700 rounded-md p-2 max-h-40 overflow-y-auto">
-                                        <p v-if="projeYukleniyor" class="text-sm text-gray-500">Projeler yükleniyor...</p>
-                                        <p v-else-if="secilebilirProjeler.length === 0 && projeler.length > 0" class="text-sm text-gray-500">Tüm aktif projeler seçilmiş.</p>
-                                        <p v-else-if="projeler.length === 0 && !projeYukleniyor" class="text-sm text-warning">Hiç proje bulunamadı.</p>
-                                        <div v-else v-for="proje in secilebilirProjeler" :key="'available-' + proje.id" class="flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800 p-1 px-2 rounded mb-1">
-                                            <span>{{ proje.name }}</span>
-                                            <button type="button" @click="projeEkle(proje.id)" class="text-success hover:text-green-700" title="Projeyi Ekle">
-                                                <icon-plus class="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <span v-if="formHatalari.projectIds" class="text-danger text-sm mt-1">{{ formHatalari.projectIds }}</span>
-                                </div>
-                                <!-- /YENİ PROJE SEÇİM ALANI -->
+                                </div>                                <!-- Proje seçimi kaldırıldı -->
 
                                 <div class="mb-5">
                                     <label for="role">Kullanıcı Tipi <span class="text-danger">*</span></label>
@@ -522,10 +487,7 @@ const formuDogrula = () => {
     // Şifre validasyonu
     if (!duzenlemeModu.value && !yeniKullanici.value.password) {
         hatalar['password'] = 'Şifre zorunludur';
-    }    // Proje validasyonu - en az bir proje seçilmeli
-    if (!yeniKullanici.value.projectIds || yeniKullanici.value.projectIds.length === 0) {
-        hatalar['projectIds'] = 'En az bir proje seçilmelidir';
-    }
+    }    // Proje validasyonu kaldırıldı
 
     // Kullanıcı tipi validasyonu
     if (!yeniKullanici.value.role) {
@@ -752,9 +714,8 @@ const kullaniciKaydet = async () => {
 
             const sonuc = await authStore.updateUser(yeniKullanici.value.email, updateData);
 
-            if (sonuc.success) {
-                // Kullanıcı dokümanı güncellendi, şimdi userProjects koleksiyonunu senkronize et
-                await kullaniciProjeIliskileriniGuncelle(yeniKullanici.value.id, yeniKullanici.value.projectIds, mevcutProjeIdleri);
+            if (sonuc.success) {                // Proje ilişkileri güncelleme kaldırıldı
+                console.log('Kullanıcı güncellendi, proje ilişkileri güncellenmedi');
                 
                 store.showMessage('Kullanıcı başarıyla güncellendi', 'success');
                 showModal.value = false;
@@ -784,22 +745,10 @@ const kullaniciKaydet = async () => {
             // Sadece depo sorumlusu ise depot değerini ekle
             if (yeniKullanici.value.role === 'user' || yeniKullanici.value.role === 'depo_sorumlusu') {
                 userData.depot = yeniKullanici.value.depot;
-            }            const sonuc = await authStore.addUser(userData);
-
-            if (sonuc.success) {
-                // Kullanıcı başarıyla oluşturuldu, şimdi userProjects ilişkilerini güncelle
-                if (sonuc.user?.id) {
-                    // Eklenen kullanıcının ID'si ile proje ilişkilerini oluştur
-                    try {
-                        await kullaniciProjeIliskileriniGuncelle(sonuc.user.id, yeniKullanici.value.projectIds);
-                        console.log(`Yeni kullanıcı ${sonuc.user.id} için proje ilişkileri oluşturuldu`);
-                    } catch (projeError) {
-                        console.error('Proje ilişkileri oluşturulurken hata:', projeError);
-                        store.showMessage('Kullanıcı eklendi ancak proje ilişkileri oluşturulurken hata oluştu', 'warning');
-                    }
-                } else {
-                    console.warn('Kullanıcı ekleme başarılı oldu ancak userId dönmedi, proje ilişkileri kurulamadı');
-                }
+            }            const sonuc = await authStore.addUser(userData);            if (sonuc.success) {
+                // Proje ilişkileri kaldırıldı
+                console.log('Kullanıcı başarıyla eklendi');
+                // Not: Proje ilişkilerini oluşturmayı kaldırdık, artık kullanıcılar projelere otomatik atanmayacak
                 
                 store.showMessage('Kullanıcı başarıyla eklendi', 'success');
                 showModal.value = false;

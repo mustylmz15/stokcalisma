@@ -482,39 +482,47 @@ class ProjectService {
             console.error('Remove warehouse from project error:', error);
             throw error;
         }
-    }
-    
-    // Timestamp veya diğer tarih formatlarını düzgün şekilde işlemek için yardımcı metod
+    }      // Timestamp veya diğer tarih formatlarını düzgün şekilde işlemek için yardımcı metod
     private formatTimestamp(timestamp: any): string {
-        if (!timestamp) {
-            return new Date().toISOString();
-        }
-        
-        // Firestore Timestamp objesi
-        if (timestamp && typeof timestamp.toDate === 'function') {
-            return timestamp.toDate().toISOString();
-        }
-        
-        // Zaten Date objesi
-        if (timestamp instanceof Date) {
-            return timestamp.toISOString();
-        }
-        
-        // Sayısal timestamp (milisaniye)
-        if (typeof timestamp === 'number') {
-            return new Date(timestamp).toISOString();
-        }
-        
-        // String timestamp
-        if (typeof timestamp === 'string') {
-            // Geçerli bir ISO-8601 tarih formatı mı kontrol et
-            if (!isNaN(Date.parse(timestamp))) {
+        try {
+            // Timestamp boş ise şimdiki zamanı döndür
+            if (!timestamp) {
+                return new Date().toISOString();
+            }
+            
+            // Firestore Timestamp objesi kontrolü
+            if (timestamp && timestamp.toDate && typeof timestamp.toDate === 'function') {
+                return timestamp.toDate().toISOString();
+            }
+            
+            // Date objesi kontrolü
+            if (timestamp instanceof Date) {
+                return timestamp.toISOString();
+            }
+            
+            // Sayısal değer kontrolü
+            const timestampType = typeof timestamp;
+            if (timestampType === 'number') {
                 return new Date(timestamp).toISOString();
             }
+            
+            // String değer kontrolü
+            if (timestampType === 'string') {
+                const timestampStr = timestamp as string;
+                // ISO string formatı kontrolü
+                if (timestampStr.includes('T') && timestampStr.includes('Z')) {
+                    return timestampStr;
+                }
+                // Tarih oluşturmayı dene
+                return new Date(timestampStr).toISOString();
+            }
+            
+            // Hiçbir format eşleşmediyse
+            return new Date().toISOString();
+        } catch (error) {
+            console.error('formatTimestamp hata:', error);
+            return new Date().toISOString(); // Hata olursa varsayılan değer
         }
-        
-        // Diğer tüm durumlar için şu anın tarihini kullan
-        return new Date().toISOString();
     }
 }
 

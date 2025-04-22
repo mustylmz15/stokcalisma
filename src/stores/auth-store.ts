@@ -602,7 +602,6 @@ export const useAuthStore = defineStore('auth', {
                 return [];
             }
         },
-<<<<<<< HEAD
         async getUserProjects(userId: string): Promise<string[]> {
             try {
                 if (!userId) {

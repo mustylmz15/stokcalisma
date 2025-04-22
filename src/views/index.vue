@@ -10,6 +10,42 @@
         </ul>
 
         <div class="pt-5">
+            <div class="grid sm:grid-cols-2 md:grid-cols-4 gap-6 mb-6">
+              <!-- ÜRÜN STOKLARI -->
+              <div class="panel p-4">
+                <h6 class="font-semibold mb-2">Ürün Stokları</h6>
+                <ul class="list-disc pl-5 text-sm">
+                  <li v-for="(p, i) in productStocks" :key="i">{{ p.name }}: {{ p.total }}</li>
+                </ul>
+              </div>
+              <!-- KRİTİK STOK ÜRÜNLER -->
+              <div class="panel p-4">
+                <h6 class="font-semibold mb-2">Kritik Stok</h6>
+                <ul class="list-disc pl-5 text-sm">
+                  <li v-for="(item, i) in lowStockProducts.slice(0, 5)" :key="i">
+                    {{ item.name }} ({{ item.quantity }}) - {{ item.warehouse }}
+                  </li>
+                </ul>
+              </div>
+              <!-- KATEGORİLER -->
+              <div class="panel p-4">
+                <h6 class="font-semibold mb-2">Kategoriler</h6>
+                <ul class="list-disc pl-5 text-sm">
+                  <li v-for="(cat, i) in categoriesList" :key="i">{{ cat }}</li>
+                </ul>
+              </div>
+              <!-- SON 5 HAREKET -->
+              <div class="panel p-4">
+                <h6 class="font-semibold mb-2">Son 5 Hareket</h6>
+                <ul class="list-disc pl-5 text-sm">
+                  <li v-for="m in movementsList" :key="m.id">
+                    {{ m.type === 'in' ? 'Giriş' : m.type === 'out' ? 'Çıkış' : 'Transfer' }} {{ getProductName(m.productId) }} -
+                    {{ new Date(m.date).toLocaleDateString('tr-TR') }}
+                  </li>
+                </ul>
+              </div>
+            </div>
+
             <div class="grid xl:grid-cols-3 gap-6 mb-6">
                 <div class="panel h-full xl:col-span-2">
                     <div class="flex items-center justify-between dark:text-white-light mb-5">
@@ -68,6 +104,63 @@
                         </apexchart>
                     </div>
                 </div>
+            </div> <!-- end of Sales By Category grid -->
+
+            <!-- Depo Doluluk Oranı ve Ürün Detay Tablosu -->
+            <div class="grid grid-cols-5 gap-6 mb-6">
+              <div class="panel h-full col-span-2">
+                <div class="flex items-center mb-5">
+                  <h5 class="font-semibold text-lg dark:text-white-light">Depo Doluluk Oranı</h5>
+                </div>
+                <apexchart
+                  height="380"
+                  type="donut"
+                  :options="warehouseChartOptions"
+                  :series="warehouseChartSeries"
+                  class="bg-white dark:bg-black rounded-lg overflow-hidden"
+                >
+                  <div class="min-h-[380px] grid place-content-center bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08]">
+                    <span class="animate-spin border-2 border-black dark:border-white !border-l-transparent rounded-full w-5 h-5 inline-flex"></span>
+                  </div>
+                </apexchart>
+              </div>
+              <div class="panel p-4 col-span-3">
+                <h5 class="font-semibold mb-4 dark:text-white-light">Ürün Bazlı Detaylı Tablo</h5>
+                <div class="flex gap-2 mb-4">
+                  <input
+                    v-model="searchTerm"
+                    type="text"
+                    placeholder="Ara..."
+                    class="flex-1 p-2 border rounded"
+                  />
+                  <select v-model="categoryFilter" class="p-2 border rounded">
+                    <option value="">Tüm Kategoriler</option>
+                    <option v-for="cat in categoriesList" :key="cat" :value="cat">{{ cat }}</option>
+                  </select>
+                </div>
+                <div class="overflow-auto">
+                  <table class="min-w-full text-sm">
+                    <thead>
+                      <tr>
+                        <th class="px-2 py-1 text-left">Kod</th>
+                        <th class="px-2 py-1 text-left">Ürün Adı</th>
+                        <th class="px-2 py-1 text-left">Kategori</th>
+                        <th class="px-2 py-1 text-right">Stok</th>
+                        <th class="px-2 py-1 text-right">Min. Stok</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="prod in filteredProducts" :key="prod.id" class="hover:bg-gray-100 dark:hover:bg-gray-700">
+                        <td class="px-2 py-1">{{ prod.code }}</td>
+                        <td class="px-2 py-1">{{ prod.name }}</td>
+                        <td class="px-2 py-1">{{ prod.category.name }}</td>
+                        <td class="px-2 py-1 text-right">{{ prod.totalStock }}</td>
+                        <td class="px-2 py-1 text-right">{{ prod.minStockLevel }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
 
             <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
@@ -98,81 +191,88 @@
                     <div class="flex items-center dark:text-white-light mb-5">
                         <h5 class="font-semibold text-lg">Summary</h5>
                         <div class="dropdown ltr:ml-auto rtl:mr-auto">
-                            <Popper :placement="store.rtlClass === 'rtl' ? 'bottom-start' : 'bottom-end'" offsetDistance="0" class="align-middle">
-                                <a href="javascript:;">
-                                    <icon-horizontal-dots class="w-5 h-5 text-black/70 dark:text-white/70 hover:!text-primary" />
-                                </a>
-                                <template #content="{ close }">
-                                    <ul @click="close()">
-                                        <li>
-                                            <a href="javascript:;">View Report</a>
-                                        </li>
-                                        <li>
-                                            <a href="javascript:;">Edit Report</a>
-                                        </li>
-                                        <li>
-                                            <a href="javascript:;">Mark as Done</a>
-                                        </li>
-                                    </ul>
-                                </template>
-                            </Popper>
+                          <Popper :placement="store.rtlClass === 'rtl' ? 'bottom-start' : 'bottom-end'" offsetDistance="0" class="align-middle">
+                            <a href="javascript:;"><icon-horizontal-dots class="w-5 h-5 text-black/70 dark:text-white/70 hover:!text-primary"/></a>
+                            <template #content="{ close }">
+                              <ul @click="close()">
+                                <li><a href="javascript:;">View Report</a></li>
+                                <li><a href="javascript:;">Edit Report</a></li>
+                                <li><a href="javascript:;">Mark as Done</a></li>
+                              </ul>
+                            </template>
+                          </Popper>
                         </div>
                     </div>
                     <div class="space-y-9">
-                        <div class="flex items-center">
-                            <div class="w-9 h-9 ltr:mr-3 rtl:ml-3">
-                                <div
-                                    class="bg-secondary-light dark:bg-secondary text-secondary dark:text-secondary-light rounded-full w-9 h-9 grid place-content-center"
-                                >
-                                    <icon-inbox />
-                                </div>
-                            </div>
-                            <div class="flex-1">
-                                <div class="flex font-semibold text-white-dark mb-2">
-                                    <h6>Income</h6>
-                                    <p class="ltr:ml-auto rtl:mr-auto">$92,600</p>
-                                </div>
-                                <div class="rounded-full h-2 bg-dark-light dark:bg-[#1b2e4b] shadow">
-                                    <div class="bg-gradient-to-r from-[#7579ff] to-[#b224ef] w-11/12 h-full rounded-full"></div>
-                                </div>
-                            </div>
+                      <div class="flex items-center">
+                        <div class="w-full">
+                          <div class="flex justify-between">
+                            <span class="text-xs font-semibold text-white-dark dark:text-white/60">Ürün Stokları</span>
+                            <span class="text-xs font-semibold text-white-dark dark:text-white/60">{{ totalProducts }}</span>
+                          </div>
+                          <div class="h-2.5 bg-white-light/30 dark:bg-white/10 rounded-full">
+                            <div class="h-2.5 bg-primary rounded-full" :style="{ width: `${(totalProducts / 100) * 100}%` }"></div>
+                          </div>
                         </div>
-                        <div class="flex items-center">
-                            <div class="w-9 h-9 ltr:mr-3 rtl:ml-3">
-                                <div
-                                    class="bg-success-light dark:bg-success text-success dark:text-success-light rounded-full w-9 h-9 grid place-content-center"
-                                >
-                                    <icon-tag />
-                                </div>
-                            </div>
-                            <div class="flex-1">
-                                <div class="flex font-semibold text-white-dark mb-2">
-                                    <h6>Profit</h6>
-                                    <p class="ltr:ml-auto rtl:mr-auto">$37,515</p>
-                                </div>
-                                <div class="w-full rounded-full h-2 bg-dark-light dark:bg-[#1b2e4b] shadow">
-                                    <div class="bg-gradient-to-r from-[#3cba92] to-[#0ba360] w-full h-full rounded-full" style="width: 65%"></div>
-                                </div>
-                            </div>
+                      </div>
+                      <div class="flex items-center">
+                        <div class="w-full">
+                          <div class="flex justify-between">
+                            <span class="text-xs font-semibold text-white-dark dark:text-white/60">Düşük Stok</span>
+                            <span class="text-xs font-semibold text-white-dark dark:text-white/60">{{ lowStockCount }}</span>
+                          </div>
+                          <div class="h-2.5 bg-white-light/30 dark:bg-white/10 rounded-full">
+                            <div class="h-2.5 bg-danger rounded-full" :style="{ width: `${(lowStockCount / 100) * 100}%` }"></div>
+                          </div>
                         </div>
-                        <div class="flex items-center">
-                            <div class="w-9 h-9 ltr:mr-3 rtl:ml-3">
-                                <div
-                                    class="bg-warning-light dark:bg-warning text-warning dark:text-warning-light rounded-full w-9 h-9 grid place-content-center"
-                                >
-                                    <icon-credit-card />
-                                </div>
-                            </div>
-                            <div class="flex-1">
-                                <div class="flex font-semibold text-white-dark mb-2">
-                                    <h6>Expenses</h6>
-                                    <p class="ltr:ml-auto rtl:mr-auto">$55,085</p>
-                                </div>
-                                <div class="w-full rounded-full h-2 bg-dark-light dark:bg-[#1b2e4b] shadow">
-                                    <div class="bg-gradient-to-r from-[#f09819] to-[#ff5858] w-full h-full rounded-full" style="width: 80%"></div>
-                                </div>
-                            </div>
+                      </div>
+                      <div class="flex items-center">
+                        <div class="w-full">
+                          <div class="flex justify-between">
+                            <span class="text-xs font-semibold text-white-dark dark:text-white/60">Toplam Kategori</span>
+                            <span class="text-xs font-semibold text-white-dark dark:text-white/60">{{ totalCategories }}</span>
+                          </div>
+                          <div class="h-2.5 bg-white-light/30 dark:bg-white/10 rounded-full">
+                            <div class="h-2.5 bg-success rounded-full" :style="{ width: `${(totalCategories / 100) * 100}%` }"></div>
+                          </div>
                         </div>
+                      </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
+                <div class="panel h-full sm:col-span-2 xl:col-span-1 pb-0">
+                    <h5 class="font-semibold text-lg dark:text-white-light mb-5">Son Hareketler</h5>
+
+                    <perfect-scrollbar
+                         :options="{
+                             swipeEasing: true,
+                             wheelPropagation: false,
+                         }"
+                         class="relative mb-4 h-[290px] ltr:pr-3 rtl:pl-3 ltr:-mr-3 rtl:-ml-3">
+                        <template v-for="m in movementsList" :key="m.id">
+                            <div class="grid grid-cols-[auto_1fr_auto_auto] items-center py-1.5 gap-2">
+                                <div :class="`w-1.5 h-1.5 rounded-full ${m.type==='in'?'bg-success':m.type==='out'?'bg-danger':'bg-warning'}`"></div>
+                                <div class="truncate">
+                                    {{ m.type==='in' ? 'Giriş' : m.type==='out' ? 'Çıkış' : 'Transfer' }}: {{ getProductName(m.productId) }}
+                                </div>
+                                <div class="text-xs text-white-dark dark:text-gray-500 text-center whitespace-nowrap">
+                                    {{ new Date(m.date).toLocaleDateString('tr-TR') }} {{ new Date(m.date).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) }}
+                                </div>
+                                <span :class="`badge badge-outline-${m.type==='in'?'success':m.type==='out'?'danger':'warning'} text-xs`">
+                                    {{ m.type==='in'?'Giriş':m.type==='out'?'Çıkış':'Transfer' }}
+                                </span>
+                            </div>
+                        </template>
+                    </perfect-scrollbar>
+                    <div class="border-t border-white-light dark:border-white/10">
+                        <a href="javascript:;" class="font-semibold group hover:text-primary p-4 flex items-center justify-center group">
+                            View All
+                            <icon-arrow-left
+                                class="rtl:rotate-180 group-hover:translate-x-1 rtl:group-hover:-translate-x-1 transition duration-300 ltr:ml-1 rtl:mr-1"
+                            />
+                        </a>
                     </div>
                 </div>
 
@@ -201,168 +301,28 @@
 
             <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
                 <div class="panel h-full sm:col-span-2 xl:col-span-1 pb-0">
-                    <h5 class="font-semibold text-lg dark:text-white-light mb-5">Recent Activities</h5>
+                    <h5 class="font-semibold text-lg dark:text-white-light mb-5">Son Hareketler</h5>
 
                     <perfect-scrollbar
-                        :options="{
-                            swipeEasing: true,
-                            wheelPropagation: false,
-                        }"
-                        class="relative mb-4 h-[290px] ltr:pr-3 rtl:pl-3 ltr:-mr-3 rtl:-ml-3">
-                        
-                        <div class="flex items-center py-1.5 relative group">
-                            <div class="bg-info w-1.5 h-1.5 rounded-full ltr:mr-1 rtl:ml-1.5"></div>
-                            <div class="flex-1">Yeni bir stok siparişi tamamlandı</div>
-                            <div class="ltr:ml-auto rtl:mr-auto text-xs text-white-dark dark:text-gray-500">Az önce</div>
-
-                            <span class="badge badge-outline-info absolute ltr:right-0 rtl:left-0 text-xs bg-info-light dark:bg-[#0e1726] opacity-0 group-hover:opacity-100">Tamamlandı</span>
-                        </div>
-                        <div class="flex items-center py-1.5 relative group">
-                            <div class="bg-success w-1.5 h-1.5 rounded-full ltr:mr-1 rtl:ml-1.5"></div>
-                            <div class="flex-1">Bunu ben girdim.</div>
-                            <div class="ltr:ml-auto rtl:mr-auto text-xs text-white-dark dark:text-gray-500">yardım aldım</div>
-                            
-                            <span class="badge badge-outline-info absolute ltr:right-0 rtl:left-0 text-xs bg-info-light dark:bg-[#0e1726] opacity-0 group-hover:opacity-100">tamamlandı</span>
-                        </div>
-                        <div class="text-sm cursor-pointer">
-                            <div class="flex items-center py-1.5 relative group">
-                                <div class="bg-primary w-1.5 h-1.5 rounded-full ltr:mr-1 rtl:ml-1.5"></div>
-                                <div class="flex-1">Updated Server Logs</div>
-                                <div class="ltr:ml-auto rtl:mr-auto text-xs text-white-dark dark:text-gray-500">Just Now</div>
-
-                                <span class="badge badge-outline-primary absolute ltr:right-0 rtl:left-0 text-xs bg-primary-light dark:bg-[#0e1726] opacity-0 group-hover:opacity-100">Pending</span>
+                         :options="{
+                             swipeEasing: true,
+                             wheelPropagation: false,
+                         }"
+                         class="relative mb-4 h-[290px] ltr:pr-3 rtl:pl-3 ltr:-mr-3 rtl:-ml-3">
+                        <template v-for="m in movementsList" :key="m.id">
+                            <div class="grid grid-cols-[auto_1fr_auto_auto] items-center py-1.5 gap-2">
+                                <div :class="`w-1.5 h-1.5 rounded-full ${m.type==='in'?'bg-success':m.type==='out'?'bg-danger':'bg-warning'}`"></div>
+                                <div class="truncate">
+                                    {{ m.type==='in' ? 'Giriş' : m.type==='out' ? 'Çıkış' : 'Transfer' }}: {{ getProductName(m.productId) }}
+                                </div>
+                                <div class="text-xs text-white-dark dark:text-gray-500 text-center whitespace-nowrap">
+                                    {{ new Date(m.date).toLocaleDateString('tr-TR') }} {{ new Date(m.date).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) }}
+                                </div>
+                                <span :class="`badge badge-outline-${m.type==='in'?'success':m.type==='out'?'danger':'warning'} text-xs`">
+                                    {{ m.type==='in'?'Giriş':m.type==='out'?'Çıkış':'Transfer' }}
+                                </span>
                             </div>
-                            <div class="flex items-center py-1.5 relative group">
-                                <div class="bg-success w-1.5 h-1.5 rounded-full ltr:mr-1 rtl:ml-1.5"></div>
-                                <div class="flex-1">Send Mail to HR and Admin</div>
-                                <div class="ltr:ml-auto rtl:mr-auto text-xs text-white-dark dark:text-gray-500">2 min ago</div>
-
-                                <span
-                                    class="badge badge-outline-success absolute ltr:right-0 rtl:left-0 text-xs bg-success-light dark:bg-[#0e1726] opacity-0 group-hover:opacity-100"
-                                    >Completed</span
-                                >
-                            </div>
-                            <div class="flex items-center py-1.5 relative group">
-                                <div class="bg-danger w-1.5 h-1.5 rounded-full ltr:mr-1 rtl:ml-1.5"></div>
-                                <div class="flex-1">Backup Files EOD</div>
-                                <div class="ltr:ml-auto rtl:mr-auto text-xs text-white-dark dark:text-gray-500">14:00</div>
-
-                                <span
-                                    class="badge badge-outline-danger absolute ltr:right-0 rtl:left-0 text-xs bg-danger-light dark:bg-[#0e1726] opacity-0 group-hover:opacity-100"
-                                    >Pending</span
-                                >
-                            </div>
-                            <div class="flex items-center py-1.5 relative group">
-                                <div class="bg-black w-1.5 h-1.5 rounded-full ltr:mr-1 rtl:ml-1.5"></div>
-                                <div class="flex-1">Collect documents from Sara</div>
-                                <div class="ltr:ml-auto rtl:mr-auto text-xs text-white-dark dark:text-gray-500">16:00</div>
-
-                                <span
-                                    class="badge badge-outline-dark absolute ltr:right-0 rtl:left-0 text-xs bg-dark-light dark:bg-[#0e1726] opacity-0 group-hover:opacity-100"
-                                    >Completed</span
-                                >
-                            </div>
-                            <div class="flex items-center py-1.5 relative group">
-                                <div class="bg-warning w-1.5 h-1.5 rounded-full ltr:mr-1 rtl:ml-1.5"></div>
-                                <div class="flex-1">Conference call with Marketing Manager.</div>
-                                <div class="ltr:ml-auto rtl:mr-auto text-xs text-white-dark dark:text-gray-500">17:00</div>
-
-                                <span
-                                    class="badge badge-outline-warning absolute ltr:right-0 rtl:left-0 text-xs bg-warning-light dark:bg-[#0e1726] opacity-0 group-hover:opacity-100"
-                                    >In progress</span
-                                >
-                            </div>
-                            <div class="flex items-center py-1.5 relative group">
-                                <div class="bg-info w-1.5 h-1.5 rounded-full ltr:mr-1 rtl:ml-1.5"></div>
-                                <div class="flex-1">Rebooted Server</div>
-                                <div class="ltr:ml-auto rtl:mr-auto text-xs text-white-dark dark:text-gray-500">17:00</div>
-
-                                <span
-                                    class="badge badge-outline-info absolute ltr:right-0 rtl:left-0 text-xs bg-info-light dark:bg-[#0e1726] opacity-0 group-hover:opacity-100"
-                                    >Completed</span
-                                >
-                            </div>
-                            <div class="flex items-center py-1.5 relative group">
-                                <div class="bg-secondary w-1.5 h-1.5 rounded-full ltr:mr-1 rtl:ml-1.5"></div>
-                                <div class="flex-1">Send contract details to Freelancer</div>
-                                <div class="ltr:ml-auto rtl:mr-auto text-xs text-white-dark dark:text-gray-500">18:00</div>
-
-                                <span
-                                    class="badge badge-outline-secondary absolute ltr:right-0 rtl:left-0 text-xs bg-secondary-light dark:bg-[#0e1726] opacity-0 group-hover:opacity-100"
-                                    >Pending</span
-                                >
-                            </div>
-                            <div class="flex items-center py-1.5 relative group">
-                                <div class="bg-primary w-1.5 h-1.5 rounded-full ltr:mr-1 rtl:ml-1.5"></div>
-                                <div class="flex-1">Updated Server Logs</div>
-                                <div class="ltr:ml-auto rtl:mr-auto text-xs text-white-dark dark:text-gray-500">Just Now</div>
-
-                                <span
-                                    class="badge badge-outline-primary absolute ltr:right-0 rtl:left-0 text-xs bg-primary-light dark:bg-[#0e1726] opacity-0 group-hover:opacity-100"
-                                    >Pending</span
-                                >
-                            </div>
-                            <div class="flex items-center py-1.5 relative group">
-                                <div class="bg-success w-1.5 h-1.5 rounded-full ltr:mr-1 rtl:ml-1.5"></div>
-                                <div class="flex-1">Send Mail to HR and Admin</div>
-                                <div class="ltr:ml-auto rtl:mr-auto text-xs text-white-dark dark:text-gray-500">2 min ago</div>
-
-                                <span
-                                    class="badge badge-outline-success absolute ltr:right-0 rtl:left-0 text-xs bg-success-light dark:bg-[#0e1726] opacity-0 group-hover:opacity-100"
-                                    >Completed</span
-                                >
-                            </div>
-                            <div class="flex items-center py-1.5 relative group">
-                                <div class="bg-danger w-1.5 h-1.5 rounded-full ltr:mr-1 rtl:ml-1.5"></div>
-                                <div class="flex-1">Backup Files EOD</div>
-                                <div class="ltr:ml-auto rtl:mr-auto text-xs text-white-dark dark:text-gray-500">14:00</div>
-
-                                <span
-                                    class="badge badge-outline-danger absolute ltr:right-0 rtl:left-0 text-xs bg-danger-light dark:bg-[#0e1726] opacity-0 group-hover:opacity-100"
-                                    >Pending</span
-                                >
-                            </div>
-                            <div class="flex items-center py-1.5 relative group">
-                                <div class="bg-black w-1.5 h-1.5 rounded-full ltr:mr-1 rtl:ml-1.5"></div>
-                                <div class="flex-1">Collect documents from Sara</div>
-                                <div class="ltr:ml-auto rtl:mr-auto text-xs text-white-dark dark:text-gray-500">16:00</div>
-
-                                <span
-                                    class="badge badge-outline-dark absolute ltr:right-0 rtl:left-0 text-xs bg-dark-light dark:bg-[#0e1726] opacity-0 group-hover:opacity-100"
-                                    >Completed</span
-                                >
-                            </div>
-                            <div class="flex items-center py-1.5 relative group">
-                                <div class="bg-warning w-1.5 h-1.5 rounded-full ltr:mr-1 rtl:ml-1.5"></div>
-                                <div class="flex-1">Conference call with Marketing Manager.</div>
-                                <div class="ltr:ml-auto rtl:mr-auto text-xs text-white-dark dark:text-gray-500">17:00</div>
-
-                                <span
-                                    class="badge badge-outline-warning absolute ltr:right-0 rtl:left-0 text-xs bg-warning-light dark:bg-[#0e1726] opacity-0 group-hover:opacity-100"
-                                    >In progress</span
-                                >
-                            </div>
-                            <div class="flex items-center py-1.5 relative group">
-                                <div class="bg-info w-1.5 h-1.5 rounded-full ltr:mr-1 rtl:ml-1.5"></div>
-                                <div class="flex-1">Rebooted Server</div>
-                                <div class="ltr:ml-auto rtl:mr-auto text-xs text-white-dark dark:text-gray-500">17:00</div>
-
-                                <span
-                                    class="badge badge-outline-info absolute ltr:right-0 rtl:left-0 text-xs bg-info-light dark:bg-[#0e1726] opacity-0 group-hover:opacity-100"
-                                    >Completed</span
-                                >
-                            </div>
-                            <div class="flex items-center py-1.5 relative group">
-                                <div class="bg-secondary w-1.5 h-1.5 rounded-full ltr:mr-1 rtl:ml-1.5"></div>
-                                <div class="flex-1">Send contract details to Freelancer</div>
-                                <div class="ltr:ml-auto rtl:mr-auto text-xs text-white-dark dark:text-gray-500">18:00</div>
-
-                                <span
-                                    class="badge badge-outline-secondary absolute ltr:right-0 rtl:left-0 text-xs bg-secondary-light dark:bg-[#0e1726] opacity-0 group-hover:opacity-100"
-                                    >Pending</span
-                                >
-                            </div>
-                        </div>
+                        </template>
                     </perfect-scrollbar>
                     <div class="border-t border-white-light dark:border-white/10">
                         <a href="javascript:;" class="font-semibold group hover:text-primary p-4 flex items-center justify-center group">
@@ -371,106 +331,6 @@
                                 class="rtl:rotate-180 group-hover:translate-x-1 rtl:group-hover:-translate-x-1 transition duration-300 ltr:ml-1 rtl:mr-1"
                             />
                         </a>
-                    </div>
-                </div>
-
-                <div class="panel h-full">
-                    <div class="flex items-center justify-between dark:text-white-light mb-5">
-                        <h5 class="font-semibold text-lg">Transactions</h5>
-                        <div class="dropdown ltr:ml-auto rtl:mr-auto">
-                            <Popper :placement="store.rtlClass === 'rtl' ? 'bottom-start' : 'bottom-end'" offsetDistance="0" class="align-middle">
-                                <a href="javascript:;">
-                                    <icon-horizontal-dots class="text-black/70 dark:text-white/70 hover:!text-primary" />
-                                </a>
-                                <template #content="{ close }">
-                                    <ul @click="close()">
-                                        <li>
-                                            <a href="javascript:;">View Report</a>
-                                        </li>
-                                        <li>
-                                            <a href="javascript:;">Edit Report</a>
-                                        </li>
-                                        <li>
-                                            <a href="javascript:;">Mark as Done</a>
-                                        </li>
-                                    </ul>
-                                </template>
-                            </Popper>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="space-y-6">
-                            <div class="flex">
-                                <span
-                                    class="shrink-0 grid place-content-center text-base w-9 h-9 rounded-md bg-success-light dark:bg-success text-success dark:text-success-light"
-                                    >SP</span
-                                >
-                                <div class="px-3 flex-1">
-                                    <div>Shaun Park</div>
-                                    <div class="text-xs text-white-dark dark:text-gray-500">10 Jan 1:00PM</div>
-                                </div>
-                                <span class="text-success text-base px-1 ltr:ml-auto rtl:mr-auto whitespace-pre">+$36.11</span>
-                            </div>
-                            <div class="flex">
-                                <span
-                                    class="shrink-0 grid place-content-center w-9 h-9 rounded-md bg-warning-light dark:bg-warning text-warning dark:text-warning-light"
-                                >
-                                    <icon-cash-banknotes />
-                                </span>
-                                <div class="px-3 flex-1">
-                                    <div>Cash withdrawal</div>
-                                    <div class="text-xs text-white-dark dark:text-gray-500">04 Jan 1:00PM</div>
-                                </div>
-                                <span class="text-danger text-base px-1 ltr:ml-auto rtl:mr-auto whitespace-pre">-$16.44</span>
-                            </div>
-                            <div class="flex">
-                                <span
-                                    class="shrink-0 grid place-content-center w-9 h-9 rounded-md bg-danger-light dark:bg-danger text-danger dark:text-danger-light"
-                                >
-                                    <icon-user class="w-6 h-6" />
-                                </span>
-                                <div class="px-3 flex-1">
-                                    <div>Amy Diaz</div>
-                                    <div class="text-xs text-white-dark dark:text-gray-500">10 Jan 1:00PM</div>
-                                </div>
-                                <span class="text-success text-base px-1 ltr:ml-auto rtl:mr-auto whitespace-pre">+$66.44</span>
-                            </div>
-                            <div class="flex">
-                                <span
-                                    class="shrink-0 grid place-content-center w-9 h-9 rounded-md bg-secondary-light dark:bg-secondary text-secondary dark:text-secondary-light"
-                                >
-                                    <icon-netflix />
-                                </span>
-                                <div class="px-3 flex-1">
-                                    <div>Netflix</div>
-                                    <div class="text-xs text-white-dark dark:text-gray-500">04 Jan 1:00PM</div>
-                                </div>
-                                <span class="text-danger text-base px-1 ltr:ml-auto rtl:mr-auto whitespace-pre">-$32.00</span>
-                            </div>
-                            <div class="flex">
-                                <span
-                                    class="shrink-0 grid place-content-center text-base w-9 h-9 rounded-md bg-info-light dark:bg-info text-info dark:text-info-light"
-                                    >DA</span
-                                >
-                                <div class="px-3 flex-1">
-                                    <div>Daisy Anderson</div>
-                                    <div class="text-xs text-white-dark dark:text-gray-500">10 Jan 1:00PM</div>
-                                </div>
-                                <span class="text-success text-base px-1 ltr:ml-auto rtl:mr-auto whitespace-pre">+$10.08</span>
-                            </div>
-                            <div class="flex">
-                                <span
-                                    class="shrink-0 grid place-content-center w-9 h-9 rounded-md bg-primary-light dark:bg-primary text-primary dark:text-primary-light"
-                                >
-                                    <icon-bolt />
-                                </span>
-                                <div class="px-3 flex-1">
-                                    <div>Electricity Bill</div>
-                                    <div class="text-xs text-white-dark dark:text-gray-500">04 Jan 1:00PM</div>
-                                </div>
-                                <span class="text-danger text-base px-1 ltr:ml-auto rtl:mr-auto whitespace-pre">-$22.00</span>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -757,25 +617,22 @@
     </div>
 </template>
 <script lang="ts" setup>
-    import { ref, computed } from 'vue';
+    import { ref, computed, onMounted } from 'vue';
     import apexchart from 'vue3-apexcharts';
 
     import { useAppStore } from '@/stores/index';
+    import { useInventoryStore } from '@/stores/inventory';
 
-    import IconHorizontalDots from '@/components/icon/icon-horizontal-dots.vue';
-    import IconDollarSign from '@/components/icon/icon-dollar-sign.vue';
-    import IconInbox from '@/components/icon/icon-inbox.vue';
-    import IconTag from '@/components/icon/icon-tag.vue';
-    import IconCreditCard from '@/components/icon/icon-credit-card.vue';
-    import IconShoppingCart from '@/components/icon/icon-shopping-cart.vue';
-    import IconArrowLeft from '@/components/icon/icon-arrow-left.vue';
-    import IconCashBanknotes from '@/components/icon/icon-cash-banknotes.vue';
-    import IconUser from '@/components/icon/icon-user.vue';
-    import IconNetflix from '@/components/icon/icon-netflix.vue';
-    import IconBolt from '@/components/icon/icon-bolt.vue';
-    import IconPlus from '@/components/icon/icon-plus.vue';
-    import IconCaretDown from '@/components/icon/icon-caret-down.vue';
-    import IconMultipleForwardRight from '@/components/icon/icon-multiple-forward-right.vue';
+    // Depo kontrolüne dair özet istatistikler
+    const inventoryStore = useInventoryStore();
+    onMounted(() => {
+        inventoryStore.initializeStore();
+    });
+    const dashboardStats = computed(() => inventoryStore.getDashboardStats);
+    const totalProducts = computed(() => dashboardStats.value.totalProducts);
+    const lowStockCount = computed(() => dashboardStats.value.lowStockCount);
+    const totalCategories = computed(() => dashboardStats.value.totalCategories);
+    const recentMovements = computed(() => inventoryStore.getProjectMovements.length);
 
     const store = useAppStore();
 
@@ -942,7 +799,12 @@
                 fontFamily: 'Nunito, sans-serif',
             },
             dataLabels: {
-                enabled: false,
+                enabled: true,
+                formatter: (val: number, opts: any) => {
+                    const totals = opts.w.globals.seriesTotals;
+                    const totalAll = totals.reduce((a: number, b: number) => a + b, 0);
+                    return ((val / totalAll) * 100).toFixed(0) + '%';
+                }
             },
             stroke: {
                 show: true,
@@ -998,7 +860,7 @@
                     },
                 },
             },
-            labels: ['Apparel', 'Sports', 'Others'],
+            labels: inventoryStore.getCategories.map(c => c.name),
             states: {
                 hover: {
                     filter: {
@@ -1016,7 +878,13 @@
         };
     });
 
-    const salesByCategorySeries = ref([985, 737, 270]);
+    const salesByCategorySeries = computed(() =>
+        inventoryStore.getCategories.map(c =>
+            inventoryStore.getProducts
+                .filter(p => p.categoryId === c.id)
+                .reduce((sum, p) => sum + (p.totalStock || 0), 0)
+        )
+    );
 
     // daily sales
     const dailySales = computed(() => {
@@ -1157,4 +1025,92 @@
             data: [28, 40, 36, 52, 38, 60, 38, 52, 36, 40],
         },
     ]);
+
+    // Son hareketler verisi ve yardımcı fonksiyonlar
+    const movementsList = computed(() => {
+        return inventoryStore.getProjectMovements
+            .slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            .slice(0, 5);
+    });
+    const productMap = computed(() =>
+        inventoryStore.products.reduce((map, p) => ({ ...map, [p.id]: p.name }), {} as Record<string, string>)
+    );
+    const warehouseMap = computed(() =>
+        inventoryStore.warehouses.reduce((map, w) => ({ ...map, [w.id]: w.name }), {} as Record<string, string>)
+    );
+    function getProductName(id: string) {
+        return productMap.value[id] || id;
+    }
+    function getWarehouseName(id: string) {
+        return warehouseMap.value[id] || id;
+    }
+
+    // 1. adım detaylı kartlar için hesaplamalar
+    const productStocks = computed(() =>
+      inventoryStore.getProducts.map(p => ({ name: p.name, total: p.totalStock || 0 }))
+    );
+    const lowStockProducts = computed(() =>
+      inventoryStore.getLowStockProducts.map(s => ({ name: getProductName(s.productId), quantity: s.quantity, warehouse: getWarehouseName(s.warehouseId) }))
+    );
+    const categoriesList = computed(() => inventoryStore.getCategories.map(c => c.name));
+
+    const stockChartOptions = computed(() => ({
+      chart: { type: 'donut', toolbar: { show: false } },
+      dataLabels: { enabled: false },
+      plotOptions: {
+        pie: {
+          donut: {
+            size: '65%',
+            background: 'transparent',
+            labels: {
+              show: true,
+              total: {
+                show: true,
+                label: 'Toplam',
+                formatter: (w: any) => w.globals.seriesTotals.reduce((a: number, b: number) => a + b, 0)
+              }
+            }
+          }
+        }
+      },
+      labels: inventoryStore.getCategories.map(c => c.name),
+      legend: { position: 'bottom' }
+    }));
+
+    // Depo bazlı stok dağılımı
+    const warehouseLabels = computed(() =>
+      inventoryStore.getWarehouses.map(w => w.name)
+    );
+    const warehouseChartSeries = computed(() =>
+      inventoryStore.getWarehouses.map(w =>
+        inventoryStore.stocks
+          .filter(s => s.warehouseId === w.id)
+          .reduce((sum, s) => sum + s.quantity, 0)
+      )
+    );
+    const warehouseChartOptions = computed(() => ({
+      chart: { type: 'donut', toolbar: { show: false } },
+      dataLabels: { enabled: true, formatter: (val: number, opts: any) => {
+          const totals = opts.w.globals.seriesTotals;
+          const totalAll = totals.reduce((a: number, b: number) => a + b, 0);
+          return ((val / totalAll) * 100).toFixed(0) + '%';
+      } },
+      labels: warehouseLabels.value,
+      legend: { position: 'bottom' },
+      plotOptions: { pie: { donut: { size: '65%' } } }
+    }));
+
+    // Filtre ve arama fonksiyonları
+    const searchTerm = ref('');
+    const categoryFilter = ref('');
+    const filteredProducts = computed(() =>
+      inventoryStore.getProducts.filter(p => {
+        const matchesSearch = searchTerm.value === '' ||
+          p.name.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
+          p.code.toLowerCase().includes(searchTerm.value.toLowerCase());
+        const matchesCategory = categoryFilter.value === '' ||
+          p.category.name === categoryFilter.value;
+        return matchesSearch && matchesCategory;
+      })
+    );
 </script>

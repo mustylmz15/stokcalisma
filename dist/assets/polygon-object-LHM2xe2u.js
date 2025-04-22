@@ -1,1 +1,0 @@
-const s="/stokcalisma/assets/images/auth/bg-gradient.png",a="/stokcalisma/assets/images/auth/coming-soon-object1.png",o="/stokcalisma/assets/images/auth/coming-soon-object2.png",t="/stokcalisma/assets/images/auth/coming-soon-object3.png",i="/stokcalisma/assets/images/auth/polygon-object.svg";export{s as _,a,o as b,t as c,i as d};

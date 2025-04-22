@@ -98,14 +98,13 @@ const handleClickOutside = (event: MouseEvent) => {
 onMounted(async () => {
     // Click outside listener ekleme
     document.addEventListener('click', handleClickOutside);
-    
-    if (!projectStore.isInitialized) {
+      if (!projectStore.isInitialized) {
         try {
             // Kullanıcı projelerini yüklerken isProjectsLoading değerini aktif et
             isProjectsLoading.value = true;
             
-            // Tüm projeler veya kullanıcı projelerini yükle
-            await projectStore.loadUserProjects();
+            // Sadece initializeStore çağırarak projeleri yükle
+            // (loadUserProjects zaten initializeStore içinde çağrılıyor)
             await projectStore.initializeStore();
         } catch (error) {
             console.error('Projeler yüklenirken hata oluştu:', error);

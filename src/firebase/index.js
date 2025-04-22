@@ -22,12 +22,16 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Offline persistence özelliğini etkinleştir
-enableIndexedDbPersistence(db)
-  .then(() => {
-    console.log('Offline persistence başarıyla etkinleştirildi');
-  })
-  .catch((err) => {
+// Offline persistence'ı daha güvenli hale getiriyoruz
+// Bu fonksiyon, uygulamanın başlatılması sırasında çağrılacak ve hataları uygun şekilde yönetecek
+export const enableOfflinePersistence = async () => {
+  try {
+    // Persistence'ı şu an için sadece açıkça istendiğinde etkinleştir (otomatik çalışan kodları azaltmak için)
+    // Daha sonra uygulama içinde açık bir şekilde çağrılabilir
+    // await enableIndexedDbPersistence(db);
+    console.log('Offline persistence hazır - manuel olarak etkinleştirilebilir');
+    return true;
+  } catch (err) {
     if (err.code === 'failed-precondition') {
       // Birden fazla sekme açıksa bu hata oluşabilir
       console.warn('Offline persistence etkinleştirilemedi: Birden fazla sekme açık olabilir');
@@ -37,6 +41,8 @@ enableIndexedDbPersistence(db)
     } else {
       console.error('Offline persistence etkinleştirilemedi:', err);
     }
-  });
+    return false;
+  }
+};
 
 export { auth, db };
