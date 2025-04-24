@@ -353,10 +353,8 @@ export const inventoryService = {
             // Hata durumunda boş array dön
             return [];
         }
-    },
-
-    // Stok hareketi ekle
-    async processStockMovement(productId, warehouseId, quantity, type, description) {
+    },    // Stok hareketi ekle
+    async processStockMovement(productId, warehouseId, quantity, type, description, projectId) {
         try {
             // Stok kaydı oluştur veya güncelle
             const stockId = `${productId}_${warehouseId}`;
@@ -374,22 +372,23 @@ export const inventoryService = {
             }
             
             const newQuantity = type === 'in' ? currentQuantity + quantity : currentQuantity - quantity;
-            
-            // Stok güncelleme
+              // Stok güncelleme
             await setDoc(stockRef, {
                 productId,
                 warehouseId,
+                projectId: projectId || null, // Proje bilgisini ekledik
                 quantity: newQuantity,
                 updatedAt: new Date().toISOString()
             }, { merge: true });
-            
-            // Hareket kaydı oluştur
+              // Hareket kaydı oluştur
             await addDoc(collection(db, 'movements'), {
                 productId,
                 warehouseId,
                 quantity,
                 type,
                 description,
+                sourceProjectId: type === 'out' ? projectId : null, // Çıkış için kaynak proje
+                targetProjectId: type === 'in' ? projectId : null, // Giriş için hedef proje
                 previousQuantity: currentQuantity,
                 newQuantity,
                 date: new Date().toISOString(),
@@ -428,8 +427,7 @@ export const inventoryService = {
             
             // Hareket kaydı oluştur
             const docRef = await addDoc(collection(db, 'movements'), movementObject);
-            
-            // Stok güncelleme
+              // Stok güncelleme
             if (movementData.type === 'in') {
                 // Stok girişi
                 await this.processStockMovement(
@@ -437,7 +435,8 @@ export const inventoryService = {
                     movementData.targetWarehouseId || movementData.sourceWarehouseId, 
                     movementData.quantity, 
                     'in', 
-                    movementData.description || ''
+                    movementData.description || '',
+                    movementData.targetProjectId || movementData.sourceProjectId // Proje bilgisini ekledik
                 );
             } else if (movementData.type === 'out') {
                 // Stok çıkışı
@@ -446,16 +445,17 @@ export const inventoryService = {
                     movementData.sourceWarehouseId, 
                     movementData.quantity, 
                     'out', 
-                    movementData.description || ''
-                );
-            } else if (movementData.type === 'transfer' && movementData.targetWarehouseId) {
+                    movementData.description || '',
+                    movementData.sourceProjectId // Proje bilgisini ekledik
+                );            } else if (movementData.type === 'transfer' && movementData.targetWarehouseId) {
                 // Depolar arası transfer
                 await this.processStockMovement(
                     movementData.productId, 
                     movementData.sourceWarehouseId, 
                     movementData.quantity, 
                     'out', 
-                    `Transfer: ${movementData.sourceWarehouseId} → ${movementData.targetWarehouseId}`
+                    `Transfer: ${movementData.sourceWarehouseId} → ${movementData.targetWarehouseId}`,
+                    movementData.sourceProjectId // Kaynak proje bilgisini ekledik
                 );
                 
                 await this.processStockMovement(
@@ -463,7 +463,18 @@ export const inventoryService = {
                     movementData.targetWarehouseId, 
                     movementData.quantity, 
                     'in', 
-                    `Transfer: ${movementData.sourceWarehouseId} → ${movementData.targetWarehouseId}`
+                    `Transfer: ${movementData.sourceWarehouseId} → ${movementData.targetWarehouseId}`,
+                    movementData.targetProjectId || movementData.sourceProjectId // Hedef proje bilgisini ekledik
+                );
+            } else if (movementData.type === 'stock_add' && movementData.targetWarehouseId) {
+                // Stok ekleme (dışarıdan) - sadece hedef depoya ekleme yap
+                await this.processStockMovement(
+                    movementData.productId, 
+                    movementData.targetWarehouseId, 
+                    movementData.quantity, 
+                    'in', 
+                    `Stok Ekleme: Test Depo → ${movementData.targetWarehouseId}`,
+                    movementData.targetProjectId // Proje bilgisini ekledik
                 );
             }
             

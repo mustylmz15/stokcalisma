@@ -48,6 +48,7 @@ interface Stock {
     id: string;
     productId: string;
     warehouseId: string;
+    projectId?: string; // Ürünün hangi projeye ait olduğunu belirtir
     quantity: number;
 }
 
@@ -60,6 +61,8 @@ export interface Movement {
     quantity: number;
     sourceWarehouseId: string;
     targetWarehouseId?: string;
+    sourceProjectId?: string;  // Kaynak proje ID'si
+    targetProjectId?: string;  // Hedef proje ID'si (transferlerde kullanılır)
     description?: string;
 }
 
@@ -126,11 +129,49 @@ export const useInventoryStore = defineStore('inventory', {
         getStocks: (state) => state.stocks,
         getStockByProductAndWarehouse: (state) => (productId: string, warehouseId: string) => {
             return state.stocks.find(stock => stock.productId === productId && stock.warehouseId === warehouseId);
-        },
-        getStocksByWarehouseId: (state) => (warehouseId: string) => {
+        },        getStocksByWarehouseId: (state) => (warehouseId: string) => {
             return state.stocks.filter(stock => stock.warehouseId === warehouseId);
         },
-        getMovements: (state) => state.movements,
+        // Proje bazlı stok bilgileri
+        getStocksByProject: (state) => (projectId: string) => {
+            return state.stocks.filter(stock => stock.projectId === projectId);
+        },
+        // Depo ve proje bazlı stok bilgileri
+        getStocksByWarehouseAndProject: (state) => (warehouseId: string, projectId: string) => {
+            return state.stocks.filter(stock => 
+                stock.warehouseId === warehouseId && 
+                stock.projectId === projectId
+            );
+        },
+        // Belirli bir ürünün proje bazlı stok bilgileri
+        getStockByProductAndProject: (state) => (productId: string, projectId: string) => {
+            return state.stocks.find(stock => 
+                stock.productId === productId && 
+                stock.projectId === projectId
+            );
+        },
+        // Belirli bir depodaki bir ürünün proje bazlı stok bilgileri
+        getStockByProductWarehouseAndProject: (state) => (productId: string, warehouseId: string, projectId: string) => {
+            return state.stocks.find(stock => 
+                stock.productId === productId && 
+                stock.warehouseId === warehouseId && 
+                stock.projectId === projectId
+            );
+        },        getMovements: (state) => state.movements,
+        // Proje bazlı stok hareketlerini getir
+        getMovementsByProject: (state) => (projectId: string) => {
+            return state.movements.filter(movement => 
+                movement.sourceProjectId === projectId || 
+                movement.targetProjectId === projectId
+            );
+        },
+        // Belirli bir depo ve proje için stok hareketlerini getir
+        getMovementsByWarehouseAndProject: (state) => (warehouseId: string, projectId: string) => {
+            return state.movements.filter(movement => 
+                (movement.sourceWarehouseId === warehouseId && movement.sourceProjectId === projectId) ||
+                (movement.targetWarehouseId === warehouseId && movement.targetProjectId === projectId)
+            );
+        },
         getLowStockProducts: (state) => {
             return state.stocks.filter(stock => {
                 const product = state.products.find(p => p.id === stock.productId);
@@ -507,9 +548,7 @@ export const useInventoryStore = defineStore('inventory', {
                 console.error('Refresh stock data error:', error);
                 throw error;
             }
-        },
-
-        async addMovement(movementData: Movement) {
+        },        async addMovement(movementData: Movement) {
             try {
                 // Stok kontrolü
                 if (movementData.type === 'out' || movementData.type === 'transfer') {
@@ -527,7 +566,8 @@ export const useInventoryStore = defineStore('inventory', {
                         };
                         throw error;
                     }
-                }
+                }                // Stok Ekleme tipinde herhangi bir özel işlem yapmaya gerek yok
+                // addMovement metodu içindeki stok işlemleri zaten bizim için çalışacak
 
                 const response = await inventoryService.addMovement(movementData);
                 

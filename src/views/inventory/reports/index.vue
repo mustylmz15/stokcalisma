@@ -61,16 +61,22 @@
                         <input type="date" class="form-input" v-model="filters.endDate" />
                     </div>
                     <div>
-                        <label>Hareket Tipi</label>
-                        <select class="form-select" v-model="filters.movementType">
+                        <label>Hareket Tipi</label>                        <select class="form-select" v-model="filters.movementType">
                             <option value="">Tümü</option>
                             <option value="in">Giriş</option>
                             <option value="out">Çıkış</option>
                             <option value="transfer">Transfer</option>
+                            <option value="stock_add">Stok Ekleme</option>
                         </select>
                     </div>
-                </template>
-                <template v-else>
+                </template>                <template v-else>
+                    <div>
+                        <label>Proje</label>
+                        <select class="form-select" v-model="filters.projectId">
+                            <option value="">Tümü</option>
+                            <option v-for="project in availableProjects" :key="project.id" :value="project.id">{{ project.name }}</option>
+                        </select>
+                    </div>
                     <div>
                         <label>Kategori</label>
                         <select class="form-select" v-model="filters.categoryId">
@@ -152,12 +158,10 @@
                                 <td>{{ item.quantity }}</td>
                                 <td>{{ item.product?.minStockLevel || 0 }}</td>
                                 <td v-if="selectedReport === 'low-stock'">{{ (item.product?.minStockLevel || 0) - item.quantity }}</td>
-                                <td>
-                                    <span :class="{
-                                     /* 'badge badge-success': isNormalStock(item),
+                                <td>                                    <span :class="{
+                                        'badge badge-success': isNormalStock(item),
                                         'badge badge-warning': isCriticalStock(item),
                                         'badge badge-danger': isLowStock(item)
-                                        */
                                     }">
                                         {{ getStockStatus(isStockItem(item) ? item : undefined) }}
                                     </span>
@@ -170,14 +174,11 @@
                             <tr v-for="item in paginatedItems" :key="item.id">
                                 <td>{{ isMovementItem(item) ? item.movementNumber : '-' }}</td>
                                 <td>{{ isMovementItem(item) ? formatDate(item.date) : '-' }}</td>
-                                <td>
-                                    <span v-if="isMovementItem(item)" :class="{
-                                    /*
+                                <td>                                    <span v-if="isMovementItem(item)" :class="{
                                         'badge badge-success': item.type === 'in',
                                         'badge badge-danger': item.type === 'out',
-                                        'badge badge-info': item.type === 'transfer' 
-                                    */
-                                   
+                                        'badge badge-info': item.type === 'transfer',
+                                        'badge badge-warning': item.type === 'stock_add'
                                     }">
                                         {{ getMovementTypeLabel(item.type) }}
                                     </span>
@@ -185,7 +186,7 @@
                                 <td>{{ item.product?.name || '-' }}</td>
                                 <td>{{ item.quantity }}</td>
                                 <td>{{ isMovementItem(item) ? item.sourceWarehouse?.name : '-' }}</td>
-                                <td>{{ isMovementItem(item) && item.type === 'transfer' ? item.targetWarehouse?.name : '-' }}</td>
+                                <td>{{ isMovementItem(item) && (item.type === 'transfer' || item.type === 'stock_add') ? item.targetWarehouse?.name : '-' }}</td>
                                 <td>{{ isMovementItem(item) ? item.description : '-' }}</td>
                             </tr>
                         </template>
@@ -222,6 +223,7 @@
 import { ref, watch, computed, onMounted } from 'vue';
 import { useAuthStore } from '@/stores/auth-store';
 import { useInventoryStore } from '@/stores/inventory.js';
+import { useProjectStore } from '@/stores/projects';
 
 // Tip tanımlamaları
 interface Product {
@@ -256,6 +258,7 @@ interface AuthStore {
 
 const authStore = useAuthStore() as unknown as AuthStore;
 const inventoryStore = useInventoryStore();
+const projectStore = useProjectStore();
 
 interface StockItem {
     id: string;
@@ -268,7 +271,7 @@ interface MovementItem {
     id: string;
     date: string; // ISO string format
     movementNumber: string;
-    type: 'in' | 'out' | 'transfer';
+    type: 'in' | 'out' | 'transfer' | 'stock_add';
     product: Product;
     quantity: number;
     sourceWarehouse: Warehouse;
@@ -283,6 +286,7 @@ interface Filters {
     warehouseId: string;
     movementType: '' | 'in' | 'out' | 'transfer';
     stockStatus: '' | 'normal' | 'critical' | 'low';
+    projectId: string;
 }
 
 const loading = ref(false);
@@ -301,7 +305,8 @@ const filters = ref<Filters>({
     categoryId: '',
     warehouseId: '',
     movementType: '',
-    stockStatus: ''
+    stockStatus: '',
+    projectId: ''
 });
 
 onMounted(() => {
@@ -369,7 +374,7 @@ interface StoreMovementItem {
     id: string;
     date: string;
     movementNumber: string;
-    type: 'in' | 'out' | 'transfer';
+    type: 'in' | 'out' | 'transfer' | 'stock_add';
     product: StoreProduct;
     quantity: number;
     sourceWarehouse: Warehouse;
@@ -492,7 +497,7 @@ const convertToStockItem = (item: any): StockItem => {
 const convertToMovementItem = (item: any): MovementItem => {
     return {
         id: item.id,
-        date: typeof item.date === 'string' ? item.date : item.date.toISOString(),
+        date: typeof item.date === 'string' ? item.date : new Date().toISOString(),
         movementNumber: item.movementNumber,
         type: item.type,
         product: {
@@ -525,101 +530,345 @@ const convertToMovementItem = (item: any): MovementItem => {
     };
 };
 
-// Veri yükleme fonksiyonları
+// Veri yükleme fonksiyonları - iyileştirilmiş versiyon
 const loadStockData = () => {
-    const stocks = (inventoryStore.getStocks as any[]).map(convertToStockItem);
-    let filteredData = [...stocks];
-    
-    if (!authStore.isAdmin) {
-        const yetkiliDepoCodu = authStore.getAuthorizedDepot();
-        const yetkiliDepo = warehouses.value.find(w => w.code === yetkiliDepoCodu);
-        if (yetkiliDepo) {
-            filteredData = safeFilterByWarehouse(filteredData, yetkiliDepo.id);
-        }
-    }
-    
-    if (filters.value.warehouseId) {
-        filteredData = safeFilterByWarehouse(filteredData, filters.value.warehouseId);
-    }
-    
-    if (filters.value.categoryId) {
-        filteredData = safeFilterByCategory(filteredData, filters.value.categoryId);
-    }
-    
-    if (filters.value.stockStatus) {
-        filteredData = safeFilterByStockLevel(filteredData, filters.value.stockStatus as 'low' | 'critical' | 'normal');
-    }
-    
-    stockData.value = filteredData;
-};
-
-const loadMovementData = () => {
-    const movements = (inventoryStore.getMovements as any[]).map(convertToMovementItem);
-    let filteredData = [...movements];
-    
-    const yetkiliDepoCodu = !authStore.isAdmin ? authStore.getAuthorizedDepot() : null;
-    const yetkiliDepo = yetkiliDepoCodu ? warehouses.value.find(w => w.code === yetkiliDepoCodu) : null;
-    
-    if (yetkiliDepo) {
-        filteredData = filteredData.filter(item => 
-            item.sourceWarehouse?.id === yetkiliDepo.id || 
-            item.targetWarehouse?.id === yetkiliDepo.id
-        );
-    }
-    
-    if (filters.value.startDate && filters.value.endDate) {
-        const startDate = new Date(filters.value.startDate);
-        const endDate = new Date(filters.value.endDate);
-        endDate.setHours(23, 59, 59, 999);
-
-        filteredData = filteredData.filter(item => {
-            try {
-                const itemDate = new Date(item.date);
-                return !isNaN(itemDate.getTime()) && itemDate >= startDate && itemDate <= endDate;
-            } catch {
-                return false;
+    try {
+        console.log("Stok durum raporu yükleniyor...");
+        
+        // Ham verileri al
+        const stocksRaw = inventoryStore.getStocks || [];
+        const allProducts = inventoryStore.getProducts || [];
+        
+        console.log(`${stocksRaw.length} stok kaydı, ${allProducts.length} ürün bulundu`);
+        
+        // Stok kayıtlarından geçerli olanları işle
+        const processedStocks: StockItem[] = [];
+        
+        for (const stock of stocksRaw) {
+            // İlgili ürün ve depoyu bul
+            const product = allProducts.find(p => p.id === stock.productId);
+            const warehouse = warehouses.value.find(w => w.id === stock.warehouseId);
+            
+            // Eğer ürün ve depo bilgisi varsa geçerli bir stok öğesi oluştur
+            if (product && warehouse) {
+                // Kategori bilgisi
+                const category = product.category || { 
+                    id: '', 
+                    name: 'Kategori Yok', 
+                    description: '' 
+                };
+                
+                // Stok öğesini oluştur
+                processedStocks.push({
+                    id: stock.id,
+                    product: {
+                        id: product.id,
+                        code: product.code || '',
+                        name: product.name || '',
+                        unit: product.unit || '',
+                        categoryId: product.categoryId || '',
+                        minStockLevel: product.minStockLevel || 0,
+                        isActive: !!product.isActive,
+                        category: category,
+                        description: product.description
+                    },
+                    warehouse: {
+                        id: warehouse.id,
+                        code: warehouse.code || '',
+                        name: warehouse.name || ''
+                    },
+                    quantity: stock.quantity || 0
+                });
             }
-        });
+        }
+        
+        console.log(`${processedStocks.length} geçerli stok kaydı işlendi`);
+        
+        // Yetki ve filtre kontrolü
+        let filteredData = [...processedStocks];
+        
+        // Yetki kontrolü
+        if (!authStore.isAdmin) {
+            const yetkiliDepoCodu = authStore.getAuthorizedDepot();
+            const yetkiliDepo = warehouses.value.find(w => w.code === yetkiliDepoCodu);
+            if (yetkiliDepo) {
+                filteredData = filteredData.filter(item => item.warehouse?.id === yetkiliDepo.id);
+            }
+        }
+        
+        // Filtre: Depo
+        if (filters.value.warehouseId) {
+            filteredData = filteredData.filter(item => item.warehouse?.id === filters.value.warehouseId);
+        }
+          // Filtre: Kategori
+        if (filters.value.categoryId) {
+            filteredData = filteredData.filter(item => item.product?.category?.id === filters.value.categoryId);
+        }
+        
+        // Filtre: Proje
+        if (filters.value.projectId) {
+            // Stok kayıtlarında proje ID'si varsa ona göre filtrele
+            filteredData = filteredData.filter(stock => {
+                // Doğrudan projectId eşleşmesi
+                if ('projectId' in stock && stock.projectId === filters.value.projectId) {
+                    return true;
+                }
+                
+                // Depo bazlı proje filtreleme (proje-depo ilişkisini kullanarak)
+                return inventoryStore.getStocksByProject(filters.value.projectId)
+                    .some(projStock => projStock.id === stock.id);
+            });
+        }
+        
+        // Filtre: Stok Durumu
+        if (filters.value.stockStatus) {
+            const status = filters.value.stockStatus;
+            if (status === 'low') {
+                filteredData = filteredData.filter(item => 
+                    item.quantity < (item.product?.minStockLevel || 0)
+                );
+            } else if (status === 'critical') {
+                filteredData = filteredData.filter(item => 
+                    item.quantity === (item.product?.minStockLevel || 0)
+                );
+            } else if (status === 'normal') {
+                filteredData = filteredData.filter(item => 
+                    item.quantity > (item.product?.minStockLevel || 0)
+                );
+            }
+        }
+        
+        stockData.value = filteredData;
+        console.log(`${filteredData.length} kayıt filtrelendi ve gösteriliyor`);
+        
+    } catch (error) {
+        console.error("Stok verilerini yüklerken hata:", error);
+        stockData.value = [];
     }
-    
-    if (filters.value.warehouseId) {
-        filteredData = filteredData.filter(item => 
-            item.sourceWarehouse?.id === filters.value.warehouseId || 
-            item.targetWarehouse?.id === filters.value.warehouseId
-        );
-    }
-    
-    if (filters.value.movementType) {
-        filteredData = filteredData.filter(item => item.type === filters.value.movementType);
-    }
-    
-    filteredData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    movementData.value = filteredData;
 };
 
-const loadLowStockData = () => {
-    const stocks = (inventoryStore.getStocks as any[]).map(convertToStockItem);
-    const lowStocks = stocks.filter(item => item.quantity <= (item.product?.minStockLevel || 0));
-    
-    let filteredData = [...lowStocks];
-    
-    if (!authStore.isAdmin) {
-        const yetkiliDepoCodu = authStore.getAuthorizedDepot();
-        const yetkiliDepo = warehouses.value.find(w => w.code === yetkiliDepoCodu);
-        if (yetkiliDepo) {
-            filteredData = filteredData.filter(item => item.warehouse?.id === yetkiliDepo.id);
+// Hareket geçmişi verileri için iyileştirilmiş yükleme fonksiyonu
+const loadMovementData = () => {
+    try {
+        console.log("Hareket geçmişi verisi yükleniyor");
+        
+        // Hareket verilerini, ürünleri ve depoları al
+        const movementsRaw = inventoryStore.getMovements || [];
+        const products = inventoryStore.getProducts || [];
+        
+        console.log(`${movementsRaw.length} hareket kaydı bulundu`);
+        
+        // Hareket verilerini işle
+        const movements: MovementItem[] = [];
+        
+        for (const movement of movementsRaw) {
+            try {
+                // Ürün, kaynak depo ve hedef depo bilgilerini bul
+                const product = products.find(p => p.id === movement.productId);
+                const sourceWarehouse = warehouses.value.find(w => w.id === movement.sourceWarehouseId);
+                const targetWarehouse = movement.targetWarehouseId ? 
+                    warehouses.value.find(w => w.id === movement.targetWarehouseId) : undefined;
+                
+                // Eğer gerekli bileşenler bulunduysa hareket kaydını ekle
+                if (product && sourceWarehouse) {
+                    movements.push({
+                        id: movement.id,
+                        date: typeof movement.date === 'string' ? movement.date : new Date().toISOString(),
+                        movementNumber: movement.movementNumber || `HRK-${movement.id.slice(0, 8)}`,
+                        type: movement.type,
+                        product: {
+                            id: product.id,
+                            code: product.code || 'Kod Yok',
+                            name: product.name || 'İsimsiz Ürün',
+                            unit: product.unit || '',
+                            minStockLevel: product.minStockLevel || 0,
+                            categoryId: product.categoryId || '',
+                            isActive: !!product.isActive,
+                            category: product.category || { id: '', name: 'Kategori Yok', description: '' }
+                        },
+                        quantity: movement.quantity || 0,
+                        sourceWarehouse: {
+                            id: sourceWarehouse.id,
+                            code: sourceWarehouse.code || '',
+                            name: sourceWarehouse.name || 'İsimsiz Depo'
+                        },
+                        targetWarehouse: targetWarehouse ? {
+                            id: targetWarehouse.id,
+                            code: targetWarehouse.code || '',
+                            name: targetWarehouse.name || 'İsimsiz Depo'
+                        } : undefined,
+                        description: movement.description || ''
+                    });
+                } else {
+                    console.warn("Eksik hareket bileşenleri:", {
+                        movementId: movement.id,
+                        productFound: !!product,
+                        sourceWarehouseFound: !!sourceWarehouse
+                    });
+                }
+            } catch (err) {
+                console.error("Hareket dönüştürmede hata:", err);
+            }
         }
+        
+        console.log(`${movements.length} hareket kaydı işlendi`);
+        
+        let filteredData = [...movements];
+        
+        // Yetki kontolü
+        const yetkiliDepoCodu = !authStore.isAdmin ? authStore.getAuthorizedDepot() : null;
+        const yetkiliDepo = yetkiliDepoCodu ? warehouses.value.find(w => w.code === yetkiliDepoCodu) : null;
+        
+        if (yetkiliDepo) {
+            filteredData = filteredData.filter(item => 
+                item.sourceWarehouse?.id === yetkiliDepo.id || 
+                item.targetWarehouse?.id === yetkiliDepo.id
+            );
+        }
+        
+        // Tarih filtresi
+        if (filters.value.startDate && filters.value.endDate) {
+            const startDate = new Date(filters.value.startDate);
+            const endDate = new Date(filters.value.endDate);
+            endDate.setHours(23, 59, 59, 999);
+
+            filteredData = filteredData.filter(item => {
+                try {
+                    const itemDate = new Date(item.date);
+                    return !isNaN(itemDate.getTime()) && itemDate >= startDate && itemDate <= endDate;
+                } catch {
+                    return false;
+                }
+            });
+        }
+        
+        // Depo filtresi
+        if (filters.value.warehouseId) {
+            filteredData = filteredData.filter(item => 
+                item.sourceWarehouse?.id === filters.value.warehouseId || 
+                item.targetWarehouse?.id === filters.value.warehouseId
+            );
+        }
+          // Hareket tipi filtresi
+        if (filters.value.movementType) {
+            filteredData = filteredData.filter(item => item.type === filters.value.movementType);
+        }
+        
+        // Proje filtresi
+        if (filters.value.projectId) {
+            // Hareket kayıtlarında sourceProjectId veya targetProjectId varsa ona göre filtrele
+            filteredData = filteredData.filter(movement => {
+                // Doğrudan proje ID'si eşleşmesi
+                if ('sourceProjectId' in movement && movement.sourceProjectId === filters.value.projectId) {
+                    return true;
+                }
+                if ('targetProjectId' in movement && movement.targetProjectId === filters.value.projectId) {
+                    return true;
+                }
+                
+                // Depo bazlı proje filtreleme
+                const projMovements = inventoryStore.getMovementsByProject(filters.value.projectId);
+                return projMovements.some(pm => pm.id === movement.id);
+            });
+        }
+        
+        // Tarihe göre sırala (yeniden eskiye)
+        filteredData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        movementData.value = filteredData;
+        
+        console.log(`${filteredData.length} hareket kaydı filtrelendi ve gösteriliyor`);
+    } catch (error) {
+        console.error("Hareket geçmişi yüklenirken hata:", error);
+        movementData.value = [];
     }
-    
-    if (filters.value.warehouseId) {
-        filteredData = filteredData.filter(item => item.warehouse?.id === filters.value.warehouseId);
+};
+
+// Kritik stok verileri için iyileştirilmiş yükleme fonksiyonu
+const loadLowStockData = () => {
+    try {
+        console.log("Kritik stok verileri yükleniyor");
+        
+        // Ham verileri al
+        const stocksRaw = inventoryStore.getStocks || [];
+        const allProducts = inventoryStore.getProducts || [];
+        
+        // Stok kayıtlarını işleyip geçerli olanları belirle
+        const processedStocks: StockItem[] = [];
+        
+        for (const stock of stocksRaw) {
+            // İlgili ürün ve depoyu bul
+            const product = allProducts.find(p => p.id === stock.productId);
+            const warehouse = warehouses.value.find(w => w.id === stock.warehouseId);
+            
+            // Eğer ürün ve depo bilgisi varsa geçerli bir stok öğesi oluştur
+            if (product && warehouse) {
+                // Kategori bilgisi
+                const category = product.category || { 
+                    id: '', 
+                    name: 'Kategori Yok', 
+                    description: '' 
+                };
+                
+                // Stok öğesini oluştur
+                processedStocks.push({
+                    id: stock.id,
+                    product: {
+                        id: product.id,
+                        code: product.code || '',
+                        name: product.name || '',
+                        unit: product.unit || '',
+                        categoryId: product.categoryId || '',
+                        minStockLevel: product.minStockLevel || 0,
+                        isActive: !!product.isActive,
+                        category: category,
+                        description: product.description
+                    },
+                    warehouse: {
+                        id: warehouse.id,
+                        code: warehouse.code || '',
+                        name: warehouse.name || ''
+                    },
+                    quantity: stock.quantity || 0
+                });
+            }
+        }
+        
+        // Kritik stok seviyesindeki ürünleri filtrele
+        const lowStocks = processedStocks.filter(item => 
+            item.quantity <= (item.product?.minStockLevel || 0)
+        );
+        
+        console.log(`${lowStocks.length} kritik stok seviyesinde ürün bulundu`);
+        
+        // Filtreleme işlemleri
+        let filteredData = [...lowStocks];
+        
+        // Yetki kontrolü
+        if (!authStore.isAdmin) {
+            const yetkiliDepoCodu = authStore.getAuthorizedDepot();
+            const yetkiliDepo = warehouses.value.find(w => w.code === yetkiliDepoCodu);
+            if (yetkiliDepo) {
+                filteredData = filteredData.filter(item => item.warehouse?.id === yetkiliDepo.id);
+            }
+        }
+        
+        // Filtre: Depo
+        if (filters.value.warehouseId) {
+            filteredData = filteredData.filter(item => item.warehouse?.id === filters.value.warehouseId);
+        }
+        
+        // Filtre: Kategori
+        if (filters.value.categoryId) {
+            filteredData = filteredData.filter(item => item.product?.category?.id === filters.value.categoryId);
+        }
+        
+        lowStockData.value = filteredData;
+        console.log(`${filteredData.length} kritik stok kaydı filtrelendi ve gösteriliyor`);
+        
+    } catch (error) {
+        console.error("Kritik stok verilerini yüklerken hata:", error);
+        lowStockData.value = [];
     }
-    
-    if (filters.value.categoryId) {
-        filteredData = filteredData.filter(item => item.product?.category?.id === filters.value.categoryId);
-    }
-    
-    lowStockData.value = filteredData;
 };
 
 // Depo seçim listesi için computed property
@@ -631,8 +880,14 @@ const availableWarehouses = computed(() => {
     return warehouses.value.filter(w => w.code === yetkiliDepoCodu);
 });
 
+// Proje seçim listesi için computed property
+const availableProjects = computed(() => {
+    return projectStore.userProjects || [];
+});
+
 const selectReport = (reportType: string) => {
     selectedReport.value = reportType;
+    loadReportData(); // Rapor türü değiştiğinde verileri yükle
 };
 
 const formatDate = (dateString: string) => {
@@ -661,6 +916,8 @@ const getMovementTypeLabel = (type: string) => {
             return 'Çıkış';
         case 'transfer':
             return 'Transfer';
+        case 'stock_add':
+            return 'Stok Ekleme';
         default:
             return type;
     }
@@ -754,33 +1011,20 @@ const paginatedItems = computed(() => {
     return filteredItems.value.slice(start, end);
 });
 
-// Template'deki koşullu render için tip kontrol fonksiyonları
+// Öğe tipleri için kontrol fonksiyonları
 const isStockItem = (item: any): item is StockItem => {
-    return 'warehouse' in item && !('sourceWarehouse' in item);
+    return item && item.warehouse !== undefined && item.product !== undefined;
 };
 
 const isMovementItem = (item: any): item is MovementItem => {
-    return 'sourceWarehouse' in item && 'type' in item;
+    return item && item.movementNumber !== undefined && item.sourceWarehouse !== undefined;
 };
 
-// Template'de kullanılacak computed property'ler
-const itemWarehouse = computed(() => (item: StockItem | MovementItem) => {
+// Depo bilgisi için yardımcı fonksiyon
+const itemWarehouse = (item: StockItem | MovementItem): Warehouse | undefined => {
     if (isStockItem(item)) {
         return item.warehouse;
     }
-    return null;
-});
-
-const itemMovementDetails = computed(() => (item: StockItem | MovementItem) => {
-    if (isMovementItem(item)) {
-        return {
-            sourceWarehouse: item.sourceWarehouse,
-            targetWarehouse: item.targetWarehouse,
-            type: item.type,
-            movementNumber: item.movementNumber,
-            date: item.date
-        };
-    }
-    return null;
-});
+    return undefined;
+};
 </script>
