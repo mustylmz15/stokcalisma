@@ -358,21 +358,26 @@ const handleSubmit = async (): Promise<void> => {
     try {
         if (isEditing.value) {
             // Kategori güncelleme
-            inventoryStore.updateCategory(formData.value.id, {
+            await inventoryStore.updateCategory(formData.value.id, {
                 name: formData.value.name,
                 description: formData.value.description
             });
             showNotification(`"${formData.value.name}" kategorisi güncellendi`, 'success');
         } else {
             // Yeni kategori ekleme
-            inventoryStore.addCategory({
+            await inventoryStore.addCategory({
                 name: formData.value.name,
                 description: formData.value.description
             });
             showNotification(`"${formData.value.name}" kategorisi oluşturuldu`, 'success');
         }
         
-        loadCategories(); // Kategorileri yeniden yükle
+        // Kategorileri doğrudan store'dan al
+        categories.value = inventoryStore.getCategories.map(category => ({
+            ...category,
+            description: category.description || ''
+        }));
+        
         closeModal();
     } catch (error) {
         console.error('Kategori kaydedilirken hata oluştu:', error);

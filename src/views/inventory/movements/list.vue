@@ -18,12 +18,12 @@
             <!-- Filtreler -->
             <div class="mb-5 grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div>
-                    <label>Hareket Tipi</label>
-                    <select v-model="filtreler.type" class="form-select">
+                    <label>Hareket Tipi</label>                    <select v-model="filtreler.type" class="form-select">
                         <option value="">Tümü</option>
                         <option value="in">Giriş</option>
                         <option value="out">Çıkış</option>
                         <option value="transfer">Transfer</option>
+                        <option value="stock_add">Stok Ekleme</option>
                     </select>
                 </div>
                 <div>
@@ -90,11 +90,11 @@
                         <tr v-for="hareket in paginatedMovements" :key="hareket.id">
                             <td>{{ hareket.movementNumber }}</td>
                             <td>{{ formatTarih(hareket.date) }}</td>
-                            <td>
-                                <span :class="{
+                            <td>                                <span :class="{
                                     'badge badge-success': hareket.type === 'in',
                                     'badge badge-danger': hareket.type === 'out',
-                                    'badge badge-info': hareket.type === 'transfer'
+                                    'badge badge-info': hareket.type === 'transfer',
+                                    'badge badge-warning': hareket.type === 'stock_add'
                                 }">
                                     {{ getHareketTipi(hareket.type) }}
                                 </span>
@@ -151,11 +151,11 @@
                 <form @submit.prevent="handleSubmit">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div class="mb-4">
-                            <label>Hareket Türü <span class="text-red-500">*</span></label>
-                            <select class="form-select" v-model="formVerisi.type" required :class="{'border-red-500': formHatalari.type}">
+                            <label>Hareket Türü <span class="text-red-500">*</span></label>                            <select class="form-select" v-model="formVerisi.type" required :class="{'border-red-500': formHatalari.type}" @change="hareketTuruDegisti">
                                 <option value="in">Stok Girişi</option>
                                 <option value="out">Stok Çıkışı</option>
                                 <option value="transfer">Transfer</option>
+                                <option value="stock_add">Stok Ekleme</option>
                             </select>
                             <p v-if="formHatalari.type" class="text-red-500 text-xs mt-1">{{ formHatalari.type }}</p>
                         </div>
@@ -184,21 +184,19 @@
                             <input type="number" class="form-input" v-model="formVerisi.quantity" min="0.01" step="0.01" required
                                   :class="{'border-red-500': formHatalari.quantity}" />
                             <p v-if="formHatalari.quantity" class="text-red-500 text-xs mt-1">{{ formHatalari.quantity }}</p>
-                        </div>
-
-                        <div class="mb-4">
-                            <label>{{ formVerisi.type === 'out' || formVerisi.type === 'transfer' ? 'Kaynak Depo' : 'Depo' }} <span class="text-red-500">*</span></label>
+                        </div>                        <div class="mb-4">
+                            <label>{{ formVerisi.type === 'out' || formVerisi.type === 'transfer' || formVerisi.type === 'stock_add' ? 'Kaynak Depo' : 'Depo' }} <span class="text-red-500">*</span></label>
                             <select class="form-select" v-model="formVerisi.sourceWarehouseId" required
-                                   :class="{'border-red-500': formHatalari.sourceWarehouseId}">
+                                   :class="{'border-red-500': formHatalari.sourceWarehouseId}"
+                                   :disabled="formVerisi.type === 'stock_add'">
                                 <option value="">Depo Seçiniz</option>
                                 <option v-for="depo in availableSourceWarehouses" :key="depo.id" :value="depo.id">
                                     {{ depo.code }} - {{ depo.name }}
                                 </option>
-                            </select>
-                            <p v-if="formHatalari.sourceWarehouseId" class="text-red-500 text-xs mt-1">{{ formHatalari.sourceWarehouseId }}</p>
-                        </div>
-
-                        <div class="mb-4" v-if="formVerisi.type === 'transfer'">
+                            </select>                            <p v-if="formHatalari.sourceWarehouseId" class="text-red-500 text-xs mt-1">{{ formHatalari.sourceWarehouseId }}</p>
+                            <p v-if="formVerisi.type === 'stock_add'" class="text-xs text-gray-500 mt-1">Stok ekleme işleminde kaynak depo sabit olarak kullanılır</p>
+                            <p v-if="formVerisi.type === 'stock_add'" class="font-semibold text-primary mt-1">(Test Depo)</p>
+                        </div><div class="mb-4" v-if="formVerisi.type === 'transfer' || formVerisi.type === 'stock_add'">
                             <label>Hedef Depo <span class="text-red-500">*</span></label>
                             <select class="form-select" v-model="formVerisi.targetWarehouseId" required
                                    :class="{'border-red-500': formHatalari.targetWarehouseId}">
@@ -291,7 +289,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useInventoryStore } from '@/stores/inventory.js';
 
 // Interface isimlerini Türkçeleştirme
-type MovementType = 'in' | 'out' | 'transfer';
+type MovementType = 'in' | 'out' | 'transfer' | 'stock_add';
 
 interface Urun {
     id: string;
@@ -453,19 +451,20 @@ const loadMovements = async () => {
                 address: '',
                 manager: '',
                 isActive: true
-            };
-            
-            // İlgili hedef depoyu bul (transfer hareketi ise)
-            let hedefDepo = undefined;
-            if (m.type === 'transfer' && m.targetWarehouseId) {
-                const hedefDepo = depolar.value.find(d => d.id === m.targetWarehouseId) || {
-                    id: m.targetWarehouseId || '',
-                    code: '',
-                    name: 'Tanımsız Depo',
-                    address: null,
-                    manager: null,
-                    isActive: true
-                };
+            };            // İlgili hedef depoyu bul (transfer veya stock_add hareketi ise)
+            let hedefDepo;
+            if ((m.type === 'transfer' || m.type === 'stock_add') && m.targetWarehouseId) {
+                hedefDepo = depolar.value.find(d => d.id === m.targetWarehouseId);
+                if (!hedefDepo) {
+                    hedefDepo = {
+                        id: m.targetWarehouseId || '',
+                        code: '',
+                        name: 'Tanımsız Depo',
+                        address: null,
+                        manager: null,
+                        isActive: true
+                    };
+                }
             }
             
             // Hareket nesnesini oluştur
@@ -542,7 +541,7 @@ const loadProducts = async () => {
         // Ürünler boş mu kontrol et
         const productsData = inventoryStore.getProducts || [];
         
-        // Ürün bilgilerini dönüştür ve varsayılan değerleri sağla
+        // Ürün bilgilerini dönüştür ve varsayılanları ayarla
         urunler.value = productsData.map(product => ({
             id: product.id || '',
             code: product.code || '',
@@ -613,6 +612,10 @@ const openAddModal = () => {
     };
     formHatalari.value = {};
     modalGoster.value = true;
+    
+    // Form açılır açılmaz hareket türü fonksiyonunu çağır
+    // Böylece varsayılan hareket tipi için gerekli ayarlar yapılır
+    hareketTuruDegisti();
 };
 
 const closeModal = () => {
@@ -752,8 +755,7 @@ const validateForm = (): boolean => {
         formHatalari.value.sourceWarehouseId = 'Kaynak depo seçmelisiniz';
         isValid = false;
     }
-    
-    if (formVerisi.value.type === 'transfer') {
+      if (formVerisi.value.type === 'transfer' || formVerisi.value.type === 'stock_add') {
         if (!formVerisi.value.targetWarehouseId) {
             formHatalari.value.targetWarehouseId = 'Hedef depo seçmelisiniz';
             isValid = false;
@@ -773,6 +775,8 @@ const getWarehouseInfo = (movement: StokHareketi): string => {
         return movement.sourceWarehouse?.name || '';
     } else if (movement.type === 'transfer') {
         return `${movement.sourceWarehouse?.name || ''} -> ${movement.targetWarehouse?.name || ''}`;
+    } else if (movement.type === 'stock_add') {
+        return `Test Depo -> ${movement.targetWarehouse?.name || '-'}`;
     }
     return '';
 };
@@ -826,9 +830,7 @@ const handleSubmit = async () => {
 
         // Hareket numarasını oluştur
         const hareketNo = `HRK${String(inventoryStore.getMovements.length + 1).padStart(4, '0')}`;
-        console.log(`Yeni hareket numarası oluşturuluyor: ${hareketNo}`);
-
-        // Hareket verisi oluştur
+        console.log(`Yeni hareket numarası oluşturuluyor: ${hareketNo}`);        // Hareket verisi oluştur
         const movementData = {
             id: `HRK-${Math.random().toString(36).substr(2, 9)}`, // Generate a unique ID
             date: date.toISOString(),
@@ -837,7 +839,7 @@ const handleSubmit = async () => {
             productId: formVerisi.value.productId,
             quantity: quantity,
             sourceWarehouseId: formVerisi.value.sourceWarehouseId,
-            targetWarehouseId: formVerisi.value.type === 'transfer' ? formVerisi.value.targetWarehouseId : undefined,
+            targetWarehouseId: (formVerisi.value.type === 'transfer' || formVerisi.value.type === 'stock_add') ? formVerisi.value.targetWarehouseId : undefined,
             description: formVerisi.value.description || ''
         };
         
@@ -876,6 +878,8 @@ const getHareketTipi = (type: string): string => {
             return 'Çıkış';
         case 'transfer':
             return 'Transfer';
+        case 'stock_add':
+            return 'Stok Ekleme';
         default:
             return type;
     }
@@ -896,4 +900,40 @@ const availableSourceWarehouses = computed(() => {
     const yetkiliDepoCodu = authStore.getAuthorizedDepot;
     return depolar.value.filter(d => d.code === yetkiliDepoCodu);
 });
+
+// Hareket türü değiştiğinde çalışan fonksiyon
+const hareketTuruDegisti = () => {
+    // Öncelikle targetWarehouseId'yi sıfırla (transfer veya stock_add değilse bu alan gösterilmeyecek)
+    formVerisi.value.targetWarehouseId = '';
+    
+    // Eğer seçilen hareket türü "stok ekleme" ise
+    if (formVerisi.value.type === 'stock_add') {
+        // Test Depo'yu bulmaya çalışalım (önce DEP001 kodlu, sonra "Test" içeren adı olan)
+        let testDepo = depolar.value.find(depo => depo.code === 'DEP001');
+        
+        // DEP001 kodlu depo yoksa, "Test" kelimesi içeren bir depo bulmayı deneyelim
+        if (!testDepo) {
+            testDepo = depolar.value.find(depo => 
+                depo.name.toLowerCase().includes('test') || 
+                depo.code.toLowerCase().includes('test')
+            );
+        }
+        
+        // Eğer hala bulunamadıysa, ilk depoyu kullanalım
+        if (!testDepo && depolar.value.length > 0) {
+            testDepo = depolar.value[0]; // İlk depoyu kullan
+            console.log('Test Depo bulunamadı. İlk depo kullanılıyor:', testDepo.name);
+        }
+        
+        if (testDepo) {
+            // Bulunan depoyu kaynak depo olarak ayarla
+            formVerisi.value.sourceWarehouseId = testDepo.id;
+            console.log('Stok ekleme için kaynak depo olarak kullanılıyor:', testDepo.name);
+            hata.value = ''; // Hata mesajını temizle
+        } else {
+            console.error('Hiçbir aktif depo bulunamadı!');
+            hata.value = 'Stok ekleme için kullanılacak bir depo bulunamadı. Lütfen önce depo ekleyin.';
+        }
+    }
+};
 </script>

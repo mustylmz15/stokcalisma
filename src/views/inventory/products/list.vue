@@ -34,14 +34,12 @@
 
             <!-- Ürün Listesi -->
             <div class="table-responsive">
-                <table class="table-striped">
-                    <thead>
-                        <tr>
+                <table class="table-striped">                    <thead>                        <tr>
                             <th>Ürün Kodu</th>
                             <th>Ürün Adı</th>
                             <th>Kategori</th>
-                            <th>Birim</th>
-                            <th>Min. Stok</th>
+                            <th>Alt Kategori</th>
+                            <th>Stok Numarası</th>
                             <th>Toplam Stok</th>
                             <th>Durum</th>
                             <th>İşlemler</th>
@@ -59,13 +57,12 @@
                             <td colspan="8" class="text-center">
                                 {{ searchTerm || filters.categoryId ? 'Arama kriterlerinize uygun ürün bulunamadı.' : 'Henüz ürün bulunmamaktadır.' }}
                             </td>
-                        </tr>
-                        <tr v-for="product in paginatedProducts" :key="product.id">
+                        </tr>                        <tr v-for="product in paginatedProducts" :key="product.id">
                             <td>{{ product.code }}</td>
                             <td>{{ product.name }}</td>
                             <td>{{ product.category.name }}</td>
-                            <td>{{ product.unit }}</td>
-                            <td>{{ product.minStockLevel }}</td>
+                            <td>{{ product.subCategory || '-' }}</td>
+                            <td>{{ product.stockNumber || '-' }}</td>
                             <td>{{ product.totalStock }}</td>
                             <td>
                                 <span :class="{
@@ -204,7 +201,9 @@ interface Product {
     description?: string;
     categoryId: string;
     category: Category;
+    subCategory?: string;
     unit: string;
+    stockNumber?: string;
     minStockLevel: number;
     totalStock: number;
 }

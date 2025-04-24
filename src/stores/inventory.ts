@@ -35,7 +35,9 @@ export interface Product {
     description?: string;
     categoryId: string;
     category: string;
+    subCategory?: string;
     unit: string;
+    stockNumber?: string;
     minStockLevel: number;
     totalStock?: number;
     unitPrice: number;
@@ -53,7 +55,7 @@ export interface Movement {
     id: string;
     movementNumber: string;
     date: string;
-    type: 'in' | 'out' | 'transfer';
+    type: 'in' | 'out' | 'transfer' | 'stock_add';
     productId: string;
     quantity: number;
     sourceWarehouseId: string;

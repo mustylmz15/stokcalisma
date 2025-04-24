@@ -47,6 +47,7 @@
                             v-model="formData.categoryId"
                             required
                             :class="{'border-red-500': formErrors.categoryId}"
+                            @change="updateSubCategories"
                         >
                             <option value="">Kategori Seçiniz</option>
                             <option v-for="category in categories" :key="category.id" :value="category.id">
@@ -54,6 +55,25 @@
                             </option>
                         </select>
                         <p v-if="formErrors.categoryId" class="text-red-500 text-xs mt-1">{{ formErrors.categoryId }}</p>
+                    </div>
+                    
+                    <!-- Alt Kategori -->
+                    <div class="mb-4">
+                        <label for="subCategory">Alt Kategori <span class="text-red-500">*</span></label>
+                        <select
+                            id="subCategory"
+                            class="form-select"
+                            v-model="formData.subCategory"
+                            required
+                            :disabled="!formData.categoryId || availableSubCategories.length === 0"
+                            :class="{'border-red-500': formErrors.subCategory}"
+                        >
+                            <option value="">Alt Kategori Seçiniz</option>
+                            <option v-for="(subCategory, index) in availableSubCategories" :key="index" :value="subCategory">
+                                {{ subCategory }}
+                            </option>
+                        </select>
+                        <p v-if="formErrors.subCategory" class="text-red-500 text-xs mt-1">{{ formErrors.subCategory }}</p>
                     </div>
 
                     <!-- Birim -->
@@ -67,7 +87,7 @@
                             :class="{'border-red-500': formErrors.unit}"
                         >
                             <option value="adet">Adet</option>
-                            <option value="kg">Kilogram</option>
+                            <option value="takım">Takım</option>
                             <option value="lt">Litre</option>
                             <option value="mt">Metre</option>
                             <option value="kutu">Kutu</option>
@@ -76,33 +96,15 @@
                         <p v-if="formErrors.unit" class="text-red-500 text-xs mt-1">{{ formErrors.unit }}</p>
                     </div>
 
-                    <!-- Birim Fiyat -->
+                    <!-- Stok Numarası -->
                     <div class="mb-4">
-                        <label for="unitPrice">Birim Fiyat <span class="text-red-500">*</span></label>
-                        <div class="relative">
-                            <input
-                                id="unitPrice"
-                                type="number"
-                                step="0.01"
-                                class="form-input pl-8"
-                                v-model="formData.unitPrice"
-                                required
-                                :class="{'border-red-500': formErrors.unitPrice}"
-                            />
-                            <span class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₺</span>
-                        </div>
-                        <p v-if="formErrors.unitPrice" class="text-red-500 text-xs mt-1">{{ formErrors.unitPrice }}</p>
-                    </div>
-
-                    <!-- Minimum Stok Seviyesi -->
-                    <div class="mb-4">
-                        <label for="minStockLevel">Minimum Stok Seviyesi</label>
+                        <label for="stockNumber">Stok Numarası</label>
                         <input
-                            id="minStockLevel"
-                            type="number"
+                            id="stockNumber"
+                            type="text"
                             class="form-input"
-                            v-model="formData.minStockLevel"
-                            min="0"
+                            v-model="formData.stockNumber"
+                            placeholder="Stok numarası giriniz"
                         />
                     </div>
 
@@ -163,8 +165,8 @@ interface FormErrors {
     code?: string;
     name?: string;
     categoryId?: string;
+    subCategory?: string;
     unit?: string;
-    unitPrice?: string;
 }
 
 interface Notification {
@@ -173,13 +175,25 @@ interface Notification {
     type: 'success' | 'error' | 'info';
 }
 
+// Kategori-alt kategori ilişkilerini tanımla
+const categorySubcategories: Record<string, string[]> = {
+    'ekinoks': ['Hareketli Kamera', 'Sabit Kamera', 'Balistik Kamera', 'Akıllı Hareketli', 'Akıllı Sabit'],
+    'geko': ['Geko', 'Geko+', 'Mobil PTS'],
+    'kayitcihazi': ['NIR 54TB', 'NIR 96TB', 'CIR 96TB', 'CIR 216TB', 'NVR 64TB', 'NVR 96 TB', 'NAR 64 TB', 'NAR 96 TB'],
+    'ethernet': ['C Tipi Ethernet Anahtar', 'B Tipi Ethernet Anahtar', 'A Tipi Ethernet Anahtar']
+};
+
+// Mevcut alt kategorileri tutan değişken
+const availableSubCategories = ref<string[]>([]);
+
 // Durum yönetimi
 const formData = ref({
     code: '',
     name: '',
     categoryId: '',
+    subCategory: '',
     unit: 'adet',
-    unitPrice: 0,
+    stockNumber: '',
     minStockLevel: 0,
     description: '',
     isActive: true
@@ -196,6 +210,37 @@ const notification = ref<Notification>({
 
 // Store'dan veri getirme
 const categories = ref(inventoryStore.getCategories);
+
+// Kategori seçildiğinde alt kategorileri güncelle
+const updateSubCategories = () => {
+    // Seçilen kategoriye göre alt kategorileri belirle
+    const selectedCategory = categories.value.find(c => c.id === formData.value.categoryId);
+    if (selectedCategory) {
+        // Kategori adını küçük harfe çevir
+        const categoryName = selectedCategory.name.toLowerCase();
+        
+        // Kategori adına göre alt kategorileri belirle
+        if (categoryName.includes('ekinoks')) {
+            availableSubCategories.value = categorySubcategories['ekinoks'];
+        } else if (categoryName.includes('geko')) {
+            availableSubCategories.value = categorySubcategories['geko'];
+        } else if (categoryName.includes('kayıt') || categoryName.includes('kayit')) {
+            availableSubCategories.value = categorySubcategories['kayitcihazi'];
+        } else if (categoryName.includes('ethernet')) {
+            availableSubCategories.value = categorySubcategories['ethernet'];
+        } else {
+            availableSubCategories.value = [];
+        }
+        
+        // Alt kategori seçimini sıfırla
+        formData.value.subCategory = '';
+        
+        console.log('Kategori değişti:', selectedCategory.name, 'Alt kategoriler:', availableSubCategories.value);
+    } else {
+        availableSubCategories.value = [];
+        formData.value.subCategory = '';
+    }
+};
 
 // Ürün kodu kullanılabilirliğini kontrol et
 const checkCodeAvailability = (code: string): boolean => {
@@ -226,13 +271,13 @@ const validateForm = (): boolean => {
         isValid = false;
     }
     
-    if (!formData.value.unit) {
-        formErrors.value.unit = 'Birim seçmelisiniz';
+    if (formData.value.categoryId && availableSubCategories.value.length > 0 && !formData.value.subCategory) {
+        formErrors.value.subCategory = 'Alt kategori seçmelisiniz';
         isValid = false;
     }
     
-    if (formData.value.unitPrice <= 0) {
-        formErrors.value.unitPrice = 'Birim fiyat 0\'dan büyük olmalıdır';
+    if (!formData.value.unit) {
+        formErrors.value.unit = 'Birim seçmelisiniz';
         isValid = false;
     }
     
@@ -244,13 +289,15 @@ const resetForm = () => {
         code: '',
         name: '',
         categoryId: '',
+        subCategory: '',
         unit: 'adet',
-        unitPrice: 0,
+        stockNumber: '',
         minStockLevel: 0,
         description: '',
         isActive: true
     };
     formErrors.value = {};
+    availableSubCategories.value = [];
     showNotification('Form temizlendi', 'info');
 };
 
@@ -277,9 +324,18 @@ const handleSubmit = async () => {
     submitting.value = true;
     try {
         // Store'da yeni ürün oluştur
-        const newProduct = inventoryStore.addProduct({
-            ...formData.value,
-            category: categories.value.find(c => c.id === formData.value.categoryId)?.name || ''
+        await inventoryStore.addProduct({
+            code: formData.value.code,
+            name: formData.value.name,
+            categoryId: formData.value.categoryId,
+            subCategory: formData.value.subCategory,
+            unit: formData.value.unit,
+            stockNumber: formData.value.stockNumber,
+            minStockLevel: formData.value.minStockLevel,
+            description: formData.value.description,
+            isActive: formData.value.isActive,
+            category: categories.value.find(c => c.id === formData.value.categoryId)?.name || '',
+            unitPrice: 0 // Birim fiyat gerekli olduğu için 0 olarak eklendi
         });
         
         showNotification(`"${formData.value.name}" ürünü başarıyla eklendi`, 'success');

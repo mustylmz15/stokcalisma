@@ -1,32 +1,46 @@
 <template>
     <div>
-        <div class="panel">
-            <div class="flex items-center justify-between mb-5">
-                <h5 class="font-semibold text-lg dark:text-white-light">Ürün Düzenle</h5>
-                <router-link to="/inventory/products" class="btn btn-outline-primary">
-                    <i class="las la-arrow-left"></i> Geri Dön
-                </router-link>
-            </div>
+        <div class="flex justify-between mb-5 items-center">
+            <h5 class="font-semibold text-lg dark:text-white-light">Ürün Düzenle</h5>
+            <router-link to="/inventory/products" class="btn btn-outline-primary">
+                <span class="flex items-center">
+                    <i class="las la-arrow-left mr-1"></i> Geri Dön
+                </span>
+            </router-link>
+        </div>
 
-            <div v-if="loading" class="flex justify-center items-center min-h-[400px]">
-                <div class="animate-spin rounded-full h-10 w-10 border-4 border-primary border-l-transparent"></div>
+        <div class="panel" v-if="loading">
+            <div class="flex justify-center items-center p-8">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
+        </div>
 
-            <form v-else @submit.prevent="handleSubmit">
+        <div class="panel" v-else>
+            <form class="space-y-5" @submit.prevent="handleSubmit">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <!-- Ürün Kodu -->
+                    <!-- Ürün Kodu (Düzenlenemez) -->
                     <div class="mb-4">
-                        <label for="productCode">Ürün Kodu <span class="text-red-500">*</span></label>
+                        <label for="productCode">Ürün Kodu</label>
                         <input
                             id="productCode"
                             type="text"
-                            class="form-input"
+                            class="form-input bg-gray-100"
                             v-model="formData.code"
-                            required
-                            readonly
-                            :class="{'border-red-500': formErrors.code}"
+                            disabled
                         />
-                        <p v-if="formErrors.code" class="text-red-500 text-xs mt-1">{{ formErrors.code }}</p>
+                        <p class="text-xs text-gray-500 mt-1">Ürün kodu değiştirilemez</p>
+                    </div>
+
+                    <!-- Stok Numarası -->
+                    <div class="mb-4">
+                        <label for="stockNumber">Stok Numarası</label>
+                        <input
+                            id="stockNumber"
+                            type="text"
+                            class="form-input"
+                            v-model="formData.stockNumber"
+                            placeholder="Stok numarası giriniz"
+                        />
                     </div>
 
                     <!-- Ürün Adı -->
@@ -52,6 +66,7 @@
                             v-model="formData.categoryId"
                             required
                             :class="{'border-red-500': formErrors.categoryId}"
+                            @change="updateSubCategories"
                         >
                             <option value="">Kategori Seçiniz</option>
                             <option v-for="category in categories" :key="category.id" :value="category.id">
@@ -59,6 +74,25 @@
                             </option>
                         </select>
                         <p v-if="formErrors.categoryId" class="text-red-500 text-xs mt-1">{{ formErrors.categoryId }}</p>
+                    </div>
+                    
+                    <!-- Alt Kategori -->
+                    <div class="mb-4">
+                        <label for="subCategory">Alt Kategori <span class="text-red-500">*</span></label>
+                        <select
+                            id="subCategory"
+                            class="form-select"
+                            v-model="formData.subCategory"
+                            required
+                            :disabled="!formData.categoryId || availableSubCategories.length === 0"
+                            :class="{'border-red-500': formErrors.subCategory}"
+                        >
+                            <option value="">Alt Kategori Seçiniz</option>
+                            <option v-for="(subCategory, index) in availableSubCategories" :key="index" :value="subCategory">
+                                {{ subCategory }}
+                            </option>
+                        </select>
+                        <p v-if="formErrors.subCategory" class="text-red-500 text-xs mt-1">{{ formErrors.subCategory }}</p>
                     </div>
 
                     <!-- Birim -->
@@ -72,31 +106,13 @@
                             :class="{'border-red-500': formErrors.unit}"
                         >
                             <option value="adet">Adet</option>
-                            <option value="kg">Kilogram</option>
+                            <option value="takım">Takım</option>
                             <option value="lt">Litre</option>
                             <option value="mt">Metre</option>
                             <option value="kutu">Kutu</option>
                             <option value="paket">Paket</option>
                         </select>
                         <p v-if="formErrors.unit" class="text-red-500 text-xs mt-1">{{ formErrors.unit }}</p>
-                    </div>
-
-                    <!-- Birim Fiyat -->
-                    <div class="mb-4">
-                        <label for="unitPrice">Birim Fiyat <span class="text-red-500">*</span></label>
-                        <div class="relative">
-                            <input
-                                id="unitPrice"
-                                type="number"
-                                step="0.01"
-                                class="form-input pl-8"
-                                v-model="formData.unitPrice"
-                                required
-                                :class="{'border-red-500': formErrors.unitPrice}"
-                            />
-                            <span class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₺</span>
-                        </div>
-                        <p v-if="formErrors.unitPrice" class="text-red-500 text-xs mt-1">{{ formErrors.unitPrice }}</p>
                     </div>
 
                     <!-- Minimum Stok Seviyesi -->
@@ -111,31 +127,21 @@
                         />
                     </div>
 
-                    <!-- Mevcut Stok -->
+                    <!-- Toplam Stok (Sadece Gösterim) -->
                     <div class="mb-4">
-                        <label for="currentStock">Mevcut Stok</label>
-                        <div class="flex items-center">
-                            <input
-                                id="currentStock"
-                                type="number"
-                                class="form-input bg-gray-100"
-                                v-model="formData.totalStock"
-                                readonly
-                            />
-                            <span class="ml-2">{{ formData.unit }}</span>
-                        </div>
-                        <p class="text-xs text-gray-500 mt-1">
-                            Stok miktarını değiştirmek için 
-                            <router-link to="/inventory/movements" class="text-blue-500 hover:underline">
-                                stok hareketi
-                            </router-link> 
-                            ekleyin.
-                        </p>
+                        <label for="totalStock">Toplam Stok</label>
+                        <input
+                            id="totalStock"
+                            type="number"
+                            class="form-input bg-gray-100"
+                            v-model="formData.totalStock"
+                            disabled
+                        />
+                        <p class="text-xs text-gray-500 mt-1">Stok hareketleriyle güncellenir</p>
                     </div>
 
                     <!-- Durum -->
-                    <div class="mb-4">
-                        <label class="block mb-2">Durum</label>
+                    <div class="mb-4 flex items-center">
                         <label class="inline-flex">
                             <input type="checkbox" class="form-checkbox" v-model="formData.isActive" />
                             <span class="ml-2">Aktif</span>
@@ -154,12 +160,13 @@
                     </div>
                 </div>
 
-                <div class="flex justify-end gap-4 mt-4">
+                <div class="flex justify-end gap-4 mt-6">
                     <button type="button" class="btn btn-outline-danger" @click="resetForm">
                         Değişiklikleri İptal Et
                     </button>
                     <button type="submit" class="btn btn-primary" :disabled="submitting">
-                        Değişiklikleri Kaydet
+                        <span v-if="submitting" class="animate-spin mr-2">&#8635;</span>
+                        Kaydet
                     </button>
                 </div>
             </form>
@@ -194,8 +201,8 @@ interface FormErrors {
     code?: string;
     name?: string;
     categoryId?: string;
+    subCategory?: string;
     unit?: string;
-    unitPrice?: string;
 }
 
 interface Notification {
@@ -203,6 +210,14 @@ interface Notification {
     message: string;
     type: 'success' | 'error' | 'info';
 }
+
+// Kategori-alt kategori ilişkilerini tanımla
+const categorySubcategories: Record<string, string[]> = {
+    'ekinoks': ['Hareketli Kamera', 'Sabit Kamera', 'Balistik Kamera', 'Akıllı Hareketli', 'Akıllı Sabit'],
+    'geko': ['Geko', 'Geko+', 'Mobil PTS'],
+    'kayitcihazi': ['NIR 54TB', 'NIR 96TB', 'CIR 96TB', 'CIR 216TB', 'NVR 64TB', 'NVR 96 TB', 'NAR 64 TB', 'NAR 96 TB'],
+    'ethernet': ['C Tipi Ethernet Anahtar', 'B Tipi Ethernet Anahtar', 'A Tipi Ethernet Anahtar']
+};
 
 const router = useRouter();
 const route = useRoute();
@@ -213,37 +228,67 @@ const submitting = ref(false);
 const formErrors = ref<FormErrors>({});
 const originalProduct = ref<any | null>(null);
 
+// Mevcut alt kategorileri tutan değişken
+const availableSubCategories = ref<string[]>([]);
+
 const notification = ref<Notification>({
     show: false,
     message: '',
     type: 'info'
 });
 
+// Form verisi
 const formData = ref({
     id: '',
     code: '',
     name: '',
     categoryId: '',
+    subCategory: '',
     unit: 'adet',
-    unitPrice: 0,
+    stockNumber: '',
     minStockLevel: 0,
     totalStock: 0,
     description: '',
     isActive: true
 });
 
-// Saf veriler doğrudan store'dan alınıyor
+// Store'dan veri getirme
 const categories = ref(inventoryStore.getCategories);
 
-onMounted(async () => {
-    const productId = route.params.id?.toString();
-    if (productId) {
-        await loadProduct(productId);
+// Kategori seçildiğinde alt kategorileri güncelle
+const updateSubCategories = () => {
+    // Seçilen kategoriye göre alt kategorileri belirle
+    const selectedCategory = categories.value.find(c => c.id === formData.value.categoryId);
+    if (selectedCategory) {
+        // Kategori adını küçük harfe çevir
+        const categoryName = selectedCategory.name.toLowerCase();
+        
+        // Kategori adına göre alt kategorileri belirle
+        if (categoryName.includes('ekinoks')) {
+            availableSubCategories.value = categorySubcategories['ekinoks'];
+        } else if (categoryName.includes('geko')) {
+            availableSubCategories.value = categorySubcategories['geko'];
+        } else if (categoryName.includes('kayıt') || categoryName.includes('kayit')) {
+            availableSubCategories.value = categorySubcategories['kayitcihazi'];
+        } else if (categoryName.includes('ethernet')) {
+            availableSubCategories.value = categorySubcategories['ethernet'];
+        } else {
+            availableSubCategories.value = [];
+        }
+        
+        // Eğer mevcut alt kategori bu liste içinde değilse, sıfırla
+        if (formData.value.subCategory && !availableSubCategories.value.includes(formData.value.subCategory)) {
+            formData.value.subCategory = '';
+        }
     } else {
-        router.push('/inventory/products');
+        availableSubCategories.value = [];
+        formData.value.subCategory = '';
     }
-});
+    
+    console.log('Kategori değişti:', selectedCategory?.name, 'Alt kategoriler:', availableSubCategories.value);
+};
 
+// Ürün bilgilerini yükle
 const loadProduct = async (productId: string) => {
     loading.value = true;
     try {
@@ -256,25 +301,29 @@ const loadProduct = async (productId: string) => {
             }, 2000);
             return;
         }
-        
-        formData.value = { 
+          formData.value = { 
             id: product.id,
             code: product.code,
             name: product.name,
             categoryId: product.categoryId, 
             unit: product.unit,
-            unitPrice: product.unitPrice,
+            subCategory: product.subCategory || '',
+            stockNumber: product.stockNumber || '',
             minStockLevel: product.minStockLevel,
             totalStock: product.totalStock || 0,
             description: product.description || '',
             isActive: product.isActive
         };
-        
+
+        // Ürün yüklendiğinde alt kategorileri de güncelle
+        updateSubCategories();
+
+        // Orijinal ürün bilgilerini sakla
         originalProduct.value = { ...formData.value };
+        
     } catch (error) {
         console.error('Ürün yüklenirken hata oluştu:', error);
-        showNotification('Ürün yüklenirken bir hata oluştu', 'error');
-        router.push('/inventory/products');
+        showNotification('Ürün bilgileri yüklenirken bir hata oluştu', 'error');
     } finally {
         loading.value = false;
     }
@@ -282,35 +331,39 @@ const loadProduct = async (productId: string) => {
 
 const validateForm = (): boolean => {
     formErrors.value = {};
-    
-    if (!formData.value.code.trim()) {
-        formErrors.value.code = 'Ürün kodu zorunludur';
-    }
+    let isValid = true;
     
     if (!formData.value.name.trim()) {
         formErrors.value.name = 'Ürün adı zorunludur';
+        isValid = false;
     }
     
     if (!formData.value.categoryId) {
         formErrors.value.categoryId = 'Kategori seçmelisiniz';
+        isValid = false;
+    }
+    
+    if (formData.value.categoryId && availableSubCategories.value.length > 0 && !formData.value.subCategory) {
+        formErrors.value.subCategory = 'Alt kategori seçmelisiniz';
+        isValid = false;
     }
     
     if (!formData.value.unit) {
         formErrors.value.unit = 'Birim seçmelisiniz';
+        isValid = false;
     }
     
-    if (formData.value.unitPrice <= 0) {
-        formErrors.value.unitPrice = 'Birim fiyat 0\'dan büyük olmalıdır';
-    }
-    
-    return Object.keys(formErrors.value).length === 0;
+    return isValid;
 };
 
 const resetForm = () => {
     if (originalProduct.value) {
         formData.value = { ...originalProduct.value };
+        // Alt kategorileri yeniden yükle
+        updateSubCategories();
     }
-    showNotification('Form değişiklikleri iptal edildi', 'info');
+    formErrors.value = {};
+    showNotification('Form orijinal değerlere sıfırlandı', 'info');
 };
 
 const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -336,17 +389,19 @@ const handleSubmit = async () => {
     submitting.value = true;
     try {
         const updatedProduct = {
+            code: formData.value.code,
             name: formData.value.name,
             categoryId: formData.value.categoryId,
+            subCategory: formData.value.subCategory,
             unit: formData.value.unit,
-            unitPrice: formData.value.unitPrice,
+            stockNumber: formData.value.stockNumber,
             minStockLevel: formData.value.minStockLevel,
             description: formData.value.description,
             isActive: formData.value.isActive
         };
         
-        // Store'da ürünü güncelle
-        inventoryStore.updateProduct(formData.value.id, updatedProduct);
+        // Store'da ürünü güncelle - await ile bekleyerek işlemin tamamlanmasını sağla
+        await inventoryStore.updateProduct(formData.value.id, updatedProduct);
         
         showNotification('Ürün başarıyla güncellendi', 'success');
         
@@ -364,4 +419,15 @@ const handleSubmit = async () => {
         submitting.value = false;
     }
 };
+
+// Sayfa yüklendiğinde
+onMounted(() => {
+    // URL'den ürün ID'sini al
+    const productId = route.params.id as string;
+    if (productId) {
+        loadProduct(productId);
+    } else {
+        router.push('/inventory/products');
+    }
+});
 </script>
