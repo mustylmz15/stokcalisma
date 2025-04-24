@@ -300,40 +300,6 @@
             </div>
 
             <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
-                <div class="panel h-full sm:col-span-2 xl:col-span-1 pb-0">
-                    <h5 class="font-semibold text-lg dark:text-white-light mb-5">Son Hareketler</h5>
-
-                    <perfect-scrollbar
-                         :options="{
-                             swipeEasing: true,
-                             wheelPropagation: false,
-                         }"
-                         class="relative mb-4 h-[290px] ltr:pr-3 rtl:pl-3 ltr:-mr-3 rtl:-ml-3">
-                        <template v-for="m in movementsList" :key="m.id">
-                            <div class="grid grid-cols-[auto_1fr_auto_auto] items-center py-1.5 gap-2">
-                                <div :class="`w-1.5 h-1.5 rounded-full ${m.type==='in'?'bg-success':m.type==='out'?'bg-danger':'bg-warning'}`"></div>
-                                <div class="truncate">
-                                    {{ m.type==='in' ? 'Giriş' : m.type==='out' ? 'Çıkış' : 'Transfer' }}: {{ getProductName(m.productId) }}
-                                </div>
-                                <div class="text-xs text-white-dark dark:text-gray-500 text-center whitespace-nowrap">
-                                    {{ new Date(m.date).toLocaleDateString('tr-TR') }} {{ new Date(m.date).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) }}
-                                </div>
-                                <span :class="`badge badge-outline-${m.type==='in'?'success':m.type==='out'?'danger':'warning'} text-xs`">
-                                    {{ m.type==='in'?'Giriş':m.type==='out'?'Çıkış':'Transfer' }}
-                                </span>
-                            </div>
-                        </template>
-                    </perfect-scrollbar>
-                    <div class="border-t border-white-light dark:border-white/10">
-                        <a href="javascript:;" class="font-semibold group hover:text-primary p-4 flex items-center justify-center group">
-                            View All
-                            <icon-arrow-left
-                                class="rtl:rotate-180 group-hover:translate-x-1 rtl:group-hover:-translate-x-1 transition duration-300 ltr:ml-1 rtl:mr-1"
-                            />
-                        </a>
-                    </div>
-                </div>
-
                 <div class="panel h-full p-0 border-0 overflow-hidden">
                     <div class="p-6 bg-gradient-to-r from-[#4361ee] to-[#160f6b] min-h-[190px]">
                         <div class="flex justify-between items-center mb-6">
@@ -560,7 +526,7 @@
                                     <td>66</td>
                                     <td>
                                         <a class="text-warning flex items-center" href="javascript:;">
-                                            <icon-multiple-forward-right class="rtl:rotate-180 ltr:mr-1 rtl:ml-1" />
+                                            <icon-multiple-forward-right class="rtl:rotate-180 ltr:mr-1 rtl:ml-3" />
 
                                             Ads
                                         </a>
@@ -582,7 +548,7 @@
                                     <td>35</td>
                                     <td>
                                         <a class="text-secondary flex items-center" href="javascript:;">
-                                            <icon-multiple-forward-right class="rtl:rotate-180 ltr:mr-1 rtl:ml-1" />
+                                            <icon-multiple-forward-right class="rtl:rotate-180 ltr:mr-1 rtl:ml-3" />
                                             Email
                                         </a>
                                     </td>
@@ -603,7 +569,7 @@
                                     <td>30</td>
                                     <td>
                                         <a class="text-primary flex items-center" href="javascript:;">
-                                            <icon-multiple-forward-right class="rtl:rotate-180 ltr:mr-1 rtl:ml-1" />
+                                            <icon-multiple-forward-right class="rtl:rotate-180 ltr:mr-1 rtl:ml-3" />
                                             Referral
                                         </a>
                                     </td>
@@ -622,17 +588,15 @@
 
     import { useAppStore } from '@/stores/index';
     import { useInventoryStore } from '@/stores/inventory';
-
-    // Depo kontrolüne dair özet istatistikler
+    import { useAuthStore } from '@/stores/auth-store';
     const inventoryStore = useInventoryStore();
     onMounted(() => {
         inventoryStore.initializeStore();
     });
-    const dashboardStats = computed(() => inventoryStore.getDashboardStats);
-    const totalProducts = computed(() => dashboardStats.value.totalProducts);
-    const lowStockCount = computed(() => dashboardStats.value.lowStockCount);
-    const totalCategories = computed(() => dashboardStats.value.totalCategories);
-    const recentMovements = computed(() => inventoryStore.getProjectMovements.length);
+    // auth store for role and depot filtering
+    const authStore = useAuthStore();
+    const isAdminUser = computed(() => authStore.isAdmin);
+    const authorizedDepot = computed(() => authStore.getAuthorizedDepot);
 
     const store = useAppStore();
 
@@ -879,11 +843,19 @@
     });
 
     const salesByCategorySeries = computed(() =>
-        inventoryStore.getCategories.map(c =>
-            inventoryStore.getProducts
-                .filter(p => p.categoryId === c.id)
-                .reduce((sum, p) => sum + (p.totalStock || 0), 0)
-        )
+        inventoryStore.getCategories.map(c => {
+            let products = inventoryStore.getProducts.filter(p => p.categoryId === c.id);
+            
+            // Eğer admin değilse ve yetkili depo varsa, sadece o depoya ait ürünleri göster
+            if (!isAdminUser.value && authorizedDepot.value) {
+                products = products.filter(p => 
+                    inventoryStore.getStocksByWarehouseId(authorizedDepot.value!)
+                        .some(s => s.productId === p.id)
+                );
+            }
+            
+            return products.reduce((sum, p) => sum + (p.totalStock || 0), 0);
+        })
     );
 
     // daily sales
@@ -1028,9 +1000,16 @@
 
     // Son hareketler verisi ve yardımcı fonksiyonlar
     const movementsList = computed(() => {
-        return inventoryStore.getProjectMovements
-            .slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-            .slice(0, 5);
+   let list = inventoryStore.getProjectMovements.slice()
+     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+     .slice(0, 5);
+   if (!isAdminUser.value && authorizedDepot.value) {
+     list = list.filter(m =>
+       m.sourceWarehouseId === authorizedDepot.value ||
+       m.targetWarehouseId === authorizedDepot.value
+     );
+   }
+   return list;
     });
     const productMap = computed(() =>
         inventoryStore.products.reduce((map, p) => ({ ...map, [p.id]: p.name }), {} as Record<string, string>)
@@ -1046,12 +1025,28 @@
     }
 
     // 1. adım detaylı kartlar için hesaplamalar
-    const productStocks = computed(() =>
-      inventoryStore.getProducts.map(p => ({ name: p.name, total: p.totalStock || 0 }))
-    );
-    const lowStockProducts = computed(() =>
-      inventoryStore.getLowStockProducts.map(s => ({ name: getProductName(s.productId), quantity: s.quantity, warehouse: getWarehouseName(s.warehouseId) }))
-    );
+    const productStocks = computed(() => {
+   return inventoryStore.getProducts.map(p => {
+     const total = (isAdminUser.value || !authorizedDepot.value)
+       ? p.totalStock || 0
+       : inventoryStore.getStocksByWarehouseId(authorizedDepot.value!).filter(s => s.productId === p.id)
+           .reduce((sum, s) => sum + s.quantity, 0);
+     return { name: p.name, total };
+   });
+});
+
+    const lowStockProducts = computed(() => {
+   const stocks = inventoryStore.getLowStockProducts;
+   const filtered = (isAdminUser.value || !authorizedDepot.value)
+     ? stocks
+     : stocks.filter(s => s.warehouseId === authorizedDepot.value!);
+   return filtered.map(s => ({
+     name: getProductName(s.productId),
+     quantity: s.quantity,
+     warehouse: getWarehouseName(s.warehouseId)
+   }));
+});
+
     const categoriesList = computed(() => inventoryStore.getCategories.map(c => c.name));
 
     const stockChartOptions = computed(() => ({
@@ -1078,16 +1073,29 @@
     }));
 
     // Depo bazlı stok dağılımı
-    const warehouseLabels = computed(() =>
-      inventoryStore.getWarehouses.map(w => w.name)
-    );
-    const warehouseChartSeries = computed(() =>
-      inventoryStore.getWarehouses.map(w =>
-        inventoryStore.stocks
-          .filter(s => s.warehouseId === w.id)
-          .reduce((sum, s) => sum + s.quantity, 0)
-      )
-    );
+    const warehouseLabels = computed(() => {
+        // Admin kullanıcıları tüm depoları görebilir
+        // Depo sorumluları sadece yetkili oldukları depoyu görebilir
+        const warehouses = isAdminUser.value || !authorizedDepot.value 
+            ? inventoryStore.getWarehouses 
+            : inventoryStore.getWarehouses.filter(w => w.id === authorizedDepot.value);
+        return warehouses.map(w => w.name);
+    });
+
+    const warehouseChartSeries = computed(() => {
+        // Önce hangi depoların gösterilmesi gerektiğini belirle
+        const warehouses = isAdminUser.value || !authorizedDepot.value 
+            ? inventoryStore.getWarehouses 
+            : inventoryStore.getWarehouses.filter(w => w.id === authorizedDepot.value);
+        
+        // Belirlenen depolar için stok miktarlarını hesapla
+        return warehouses.map(w =>
+            inventoryStore.stocks
+                .filter(s => s.warehouseId === w.id)
+                .reduce((sum, s) => sum + s.quantity, 0)
+        );
+    });
+
     const warehouseChartOptions = computed(() => ({
       chart: { type: 'donut', toolbar: { show: false } },
       dataLabels: { enabled: true, formatter: (val: number, opts: any) => {
@@ -1100,17 +1108,45 @@
       plotOptions: { pie: { donut: { size: '65%' } } }
     }));
 
-    // Filtre ve arama fonksiyonları
+    // Summary bölümü için istatistikler
+const totalProducts = computed(() => {
+  const products = isAdminUser.value || !authorizedDepot.value
+    ? inventoryStore.getProducts.length
+    : inventoryStore.getProducts.filter(p => 
+        inventoryStore.getStocksByWarehouseId(authorizedDepot.value!)
+          .some(s => s.productId === p.id)
+      ).length;
+  return products;
+});
+
+const lowStockCount = computed(() => {
+  const stocks = inventoryStore.getLowStockProducts;
+  const filtered = (isAdminUser.value || !authorizedDepot.value)
+    ? stocks
+    : stocks.filter(s => s.warehouseId === authorizedDepot.value!);
+  return filtered.length;
+});
+
+const totalCategories = computed(() => {
+  // Tüm kategorilerin sayısını alıyoruz, çünkü kategoriler genellikle tüm sistem içindir
+  return inventoryStore.getCategories.length;
+});
+
+// Filtre ve arama fonksiyonları
     const searchTerm = ref('');
     const categoryFilter = ref('');
-    const filteredProducts = computed(() =>
-      inventoryStore.getProducts.filter(p => {
-        const matchesSearch = searchTerm.value === '' ||
-          p.name.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
-          p.code.toLowerCase().includes(searchTerm.value.toLowerCase());
-        const matchesCategory = categoryFilter.value === '' ||
-          p.category.name === categoryFilter.value;
-        return matchesSearch && matchesCategory;
-      })
-    );
+    const filteredProducts = computed(() => {
+   const base = (isAdminUser.value || !authorizedDepot.value)
+     ? inventoryStore.getProducts
+     : inventoryStore.getProducts.filter(p =>
+         inventoryStore.getStocksByWarehouseId(authorizedDepot.value!).some(s => s.productId === p.id)
+       );
+   return base.filter(p => {
+     const matchesSearch = !searchTerm.value ||
+       p.name.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
+       p.code.toLowerCase().includes(searchTerm.value.toLowerCase());
+     const matchesCategory = !categoryFilter.value || p.category.name === categoryFilter.value;
+     return matchesSearch && matchesCategory;
+   });
+});
 </script>

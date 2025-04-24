@@ -15,7 +15,7 @@
                         <tr>
                             <th>Depo Kodu</th>
                             <th>Depo Adı</th>
-                            <th>Adres</th>
+                            <th>Lokasyon</th>
                             <th>Sorumlu</th>
                             <th>Proje</th>
                             <th>Durum</th>
@@ -132,7 +132,7 @@
                         </div>
 
                         <div class="mb-4 sm:col-span-2">
-                            <label>Adres <span class="text-red-500">*</span></label>
+                            <label>Lokasyon <span class="text-red-500">*</span></label>
                             <textarea
                                 class="form-textarea"
                                 rows="3"
@@ -144,7 +144,7 @@
                         </div>
 
                         <div class="mb-4">
-                            <label>Sorumlu <span class="text-red-500">*</span></label>
+                            <label>Sorumlu Firma <span class="text-red-500">*</span></label>
                             <input
                                 type="text"
                                 class="form-input"
@@ -165,7 +165,7 @@
                             </div>
                         </div>
                         
-                        <!-- Proje seçimi -->
+                        <!-- Proje seçimi bilerek pasif bırakıldı, ileride kullanılabilir 
                         <div class="mb-4 sm:col-span-2">
                             <label>Proje</label>
                             <select class="form-select" v-model="formData.projectId">
@@ -178,6 +178,7 @@
                                 Depoyu bir projeyle ilişkilendirmek isterseniz seçebilirsiniz.
                             </p>
                         </div>
+                        -->
                     </div>
 
                     <div class="flex justify-end gap-4 mt-4">

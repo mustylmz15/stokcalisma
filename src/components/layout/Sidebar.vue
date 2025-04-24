@@ -110,6 +110,9 @@
                                     <li>
                                         <router-link to="/inventory/reports" @click="toggleMobileMenu">Stok Raporları</router-link>
                                     </li>
+                                    <li>
+                                        <router-link to="/envanter/ariza-yonetimi" @click="toggleMobileMenu">Arıza Yönetimi</router-link>
+                                    </li>
                                 </ul>
                             </vue-collapsible>
                         </li>

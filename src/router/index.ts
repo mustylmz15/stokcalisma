@@ -41,6 +41,14 @@ const routes: RouteRecordRaw[] = [
         meta: { requiresAuth: true, requiresAdmin: true, layout: 'app' }
     },
     
+    // Arızalı ürün yönetimi sayfası
+    {
+        path: '/envanter/ariza-yonetimi',
+        name: 'ariza-yonetimi',
+        component: () => import(/* webpackChunkName: "fault-management" */ '../views/inventory/ariza-yonetimi.vue'),
+        meta: { requiresAuth: true, layout: 'app' }
+    },
+    
     // Uygulamalar rotası - Geri eklendi
     {
         path: '/apps/chat',

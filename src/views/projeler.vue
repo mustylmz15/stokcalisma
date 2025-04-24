@@ -39,17 +39,17 @@
                                 <td>
                                     <div class="flex items-center gap-2">
                                         <button type="button" class="btn btn-sm btn-outline-primary" @click="openProjectModal('edit', project)">
-                                            <span class="material-icons-outlined text-sm">edit</span>
+                                            <span class="material-icons-outlined text-sm">Düzenle</span>
                                         </button>
                                         <button type="button" class="btn btn-sm btn-outline-info" @click="openUserProjectModal(project)">
-                                            <span class="material-icons-outlined text-sm">people</span>
+                                            <span class="material-icons-outlined text-sm">Kullanıcılar</span>
                                         </button>
                                         <!-- Depo yönetimi butonu -->
                                         <button type="button" class="btn btn-sm btn-outline-success" @click="openWarehouseProjectModal(project)">
-                                            <span class="material-icons-outlined text-sm">warehouse</span>
+                                            <span class="material-icons-outlined text-sm">Depolar</span>
                                         </button>
                                         <button type="button" class="btn btn-sm btn-outline-danger" @click="confirmDeleteProject(project)">
-                                            <span class="material-icons-outlined text-sm">delete</span>
+                                            <span class="material-icons-outlined text-sm">Sil</span>
                                         </button>
                                     </div>
                                 </td>
@@ -60,7 +60,7 @@
             </div>
             <div v-else class="text-center py-8">
                 <div class="text-gray-400 mb-4">
-                    <span class="material-icons-outlined text-6xl">folder_open</span>
+                    <span class="material-icons-outlined text-6xl">Projeler</span>
                 </div>
                 <p>Henüz hiç proje oluşturulmamış.</p>
                 <button type="button" class="btn btn-primary mt-4" @click="openProjectModal('add')">
@@ -76,7 +76,7 @@
                     <div class="flex justify-between items-center mb-5">
                         <h5 class="font-semibold text-lg">{{ modalMode === 'add' ? 'Yeni Proje Oluştur' : 'Projeyi Düzenle' }}</h5>
                         <button type="button" class="text-gray-400 hover:text-gray-800" @click="showProjectModal = false">
-                            <span class="material-icons-outlined">close</span>
+                            <span class="material-icons-outlined">Kapat</span>
                         </button>
                     </div>
                     <form @submit.prevent="saveProject">
@@ -117,7 +117,7 @@
                     <div class="flex justify-between items-center mb-5">
                         <h5 class="font-semibold text-lg">Proje Kullanıcıları: {{ selectedProject?.name }}</h5>
                         <button type="button" class="text-gray-400 hover:text-gray-800" @click="showUserProjectModal = false">
-                            <span class="material-icons-outlined">close</span>
+                            <span class="material-icons-outlined">Kapat</span>
                         </button>
                     </div>
                     
@@ -190,7 +190,7 @@
                                                 class="btn btn-sm btn-outline-danger"
                                                 @click="confirmRemoveUserFromProject(user)"
                                                 :disabled="user.id === authStore.userInfo?.id">
-                                                <span class="material-icons-outlined text-sm">person_remove</span>
+                                                <span class="material-icons-outlined text-sm">Kullanıcıyı Sil</span>
                                             </button>
                                         </td>
                                     </tr>
@@ -212,7 +212,7 @@
                     <div class="flex justify-between items-center mb-5">
                         <h5 class="font-semibold text-lg">Proje Depoları: {{ selectedProject?.name }}</h5>
                         <button type="button" class="text-gray-400 hover:text-gray-800" @click="showWarehouseProjectModal = false">
-                            <span class="material-icons-outlined">close</span>
+                            <span class="material-icons-outlined">Kapat</span>
                         </button>
                     </div>
                     
@@ -269,7 +269,7 @@
                                                 type="button" 
                                                 class="btn btn-sm btn-outline-danger"
                                                 @click="confirmRemoveWarehouseFromProject(warehouse)">
-                                                <span class="material-icons-outlined text-sm">delete</span>
+                                                <span class="material-icons-outlined text-sm">Kaldır</span>
                                             </button>
                                         </td>
                                     </tr>
