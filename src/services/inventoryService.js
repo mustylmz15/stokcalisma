@@ -413,13 +413,20 @@ export const inventoryService = {
             if (!movementData.productId || !movementData.type) {
                 throw new Error('Ürün ID ve hareket tipi zorunludur');
             }
-            
-            // Hareket numarası oluştur
+              // Hareket numarası oluştur
             const date = new Date();
             const movementNumber = `MVT${date.getFullYear()}${(date.getMonth()+1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}${date.getHours().toString().padStart(2, '0')}${date.getMinutes().toString().padStart(2, '0')}${date.getSeconds().toString().padStart(2, '0')}`;
             
+            // Önce undefined değerleri olmayan bir obje oluştur
+            const cleanedData = {};
+            for (const key in movementData) {
+                if (movementData[key] !== undefined) {
+                    cleanedData[key] = movementData[key];
+                }
+            }
+            
             const movementObject = {
-                ...movementData,
+                ...cleanedData,
                 movementNumber,
                 date: date.toISOString(),
                 createdAt: date.toISOString()
@@ -465,8 +472,7 @@ export const inventoryService = {
                     'in', 
                     `Transfer: ${movementData.sourceWarehouseId} → ${movementData.targetWarehouseId}`,
                     movementData.targetProjectId || movementData.sourceProjectId // Hedef proje bilgisini ekledik
-                );
-            } else if (movementData.type === 'stock_add' && movementData.targetWarehouseId) {
+                );            } else if (movementData.type === 'stock_add' && movementData.targetWarehouseId) {
                 // Stok ekleme (dışarıdan) - sadece hedef depoya ekleme yap
                 await this.processStockMovement(
                     movementData.productId, 
@@ -474,7 +480,7 @@ export const inventoryService = {
                     movementData.quantity, 
                     'in', 
                     `Stok Ekleme: Test Depo → ${movementData.targetWarehouseId}`,
-                    movementData.targetProjectId // Proje bilgisini ekledik
+                    movementData.sourceProjectId // Kaynak proje bilgisini kullan
                 );
             }
             

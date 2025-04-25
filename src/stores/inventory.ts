@@ -574,12 +574,27 @@ export const useInventoryStore = defineStore('inventory', {
                 // Stok verilerini yeniden yükle
                 const stocksData = await inventoryService.getAllStocks();
                 this.stocks = stocksData;
+                  // Hareketi state'e ekle - response ve movementData'yı birleştirerek tam bir Movement objesi oluştur
+                // undefined değerleri filtreleyerek yeni bir nesne oluştur
+                const cleanMovementData = Object.keys(movementData).reduce((acc, key) => {
+                    if (movementData[key] !== undefined) {
+                        acc[key] = movementData[key];
+                    }
+                    return acc;
+                }, {});
                 
-                // Hareketi state'e ekle - response ve movementData'yı birleştirerek tam bir Movement objesi oluştur
                 const completeMovement: Movement = {
-                    ...movementData,
+                    type: movementData.type,
+                    productId: movementData.productId,
+                    quantity: movementData.quantity,
+                    sourceWarehouseId: movementData.sourceWarehouseId,
+                    ...cleanMovementData,
                     id: response.id,
-                    date: typeof response.date === 'string' ? response.date : response.date.toISOString(),
+                    date: typeof response.date === 'string' 
+                        ? response.date 
+                        : typeof response.date === 'object' && response.date !== null && (response.date as object) instanceof Date 
+                            ? (response.date as Date).toISOString() 
+                            : String(response.date),
                     movementNumber: response.movementNumber
                 };
                 

@@ -162,10 +162,8 @@
                                     <input type="checkbox" class="form-checkbox" v-model="formData.isActive" />
                                     <span>Aktif</span>
                                 </label>
-                            </div>
-                        </div>
+                            </div>                        </div>
                         
-                        <!-- Proje seçimi bilerek pasif bırakıldı, ileride kullanılabilir 
                         <div class="mb-4 sm:col-span-2">
                             <label>Proje</label>
                             <select class="form-select" v-model="formData.projectId">
@@ -178,7 +176,6 @@
                                 Depoyu bir projeyle ilişkilendirmek isterseniz seçebilirsiniz.
                             </p>
                         </div>
-                        -->
                     </div>
 
                     <div class="flex justify-end gap-4 mt-4">
@@ -201,10 +198,19 @@
                     <button class="text-gray-400 hover:text-gray-800" @click="closeStockModal">
                         <icon-x class="w-5 h-5" />
                     </button>
-                </div>
-
-                <div class="mb-4">
-                    <input type="text" class="form-input" v-model="stockSearchTerm" placeholder="Ürün Ara..." />
+                </div>                <div class="flex gap-4 mb-4">
+                    <div class="flex-1">
+                        <input type="text" class="form-input" v-model="stockSearchTerm" placeholder="Ürün Ara..." />
+                    </div>
+                    <div class="w-64">
+                        <select class="form-select" v-model="stockProjectFilter">
+                            <option value="">Tüm Projeler</option>
+                            <option v-for="project in availableProjects" :key="project.id" :value="project.id">
+                                {{ project.name }}
+                            </option>
+                            <option value="null">Atanmamış</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div class="table-responsive">
@@ -213,26 +219,33 @@
                             <tr>
                                 <th>Ürün Kodu</th>
                                 <th>Ürün Adı</th>
+                                <th>Proje</th>
                                 <th>Miktar</th>
                                 <th>Birim</th>
                                 <th>Min. Stok</th>
                                 <th>Durum</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <tr v-if="loadingStock">
-                                <td colspan="6" class="text-center">
+                        <tbody>                            <tr v-if="loadingStock">
+                                <td colspan="7" class="text-center">
                                     <div class="flex justify-center items-center p-4">
                                         <div class="animate-spin rounded-full h-6 w-6 border-2 border-primary border-l-transparent"></div>
                                     </div>
                                 </td>
                             </tr>
                             <tr v-else-if="warehouseStock.length === 0">
-                                <td colspan="6" class="text-center">Bu depoda ürün bulunmamaktadır.</td>
-                            </tr>
-                            <tr v-for="stock in filteredStock" :key="stock.productId">
+                                <td colspan="7" class="text-center">Bu depoda ürün bulunmamaktadır.</td>
+                            </tr><tr v-for="stock in filteredStock" :key="stock.productId">
                                 <td>{{ stock.product?.code || 'N/A' }}</td>
-                                <td>{{ stock.product?.name || 'N/A' }}</td>
+                                <td>{{ stock.product?.name || 'N/A' }}</td>                                <td>
+                                    <span v-if="stock.projectId" class="badge badge-outline-info">
+                                        {{ getProjectName(stock.projectId) }}
+                                    </span>
+                                    <span v-else-if="stock.projectId === 'ApMkLHJ3Rk7BpmYuNm5Z'" class="badge badge-outline-success">
+                                        KGYS
+                                    </span>
+                                    <span v-else class="text-gray-400">Atanmamış</span>
+                                </td>
                                 <td>{{ stock.quantity }}</td>
                                 <td>{{ stock.product?.unit || 'N/A' }}</td>
                                 <td>{{ stock.product?.minStockLevel || 0 }}</td>
@@ -310,6 +323,7 @@ interface Stock {
     id: string;
     productId: string;
     warehouseId: string;
+    projectId?: string;
     quantity: number;
     product: Product | null;
 }
@@ -351,6 +365,7 @@ const selectedWarehouse = ref<Warehouse | null>(null);
 const warehouseStock = ref<Stock[]>([]);
 const loadingStock = ref<boolean>(false);
 const stockSearchTerm = ref<string>('');
+const stockProjectFilter = ref<string>('');
 const currentPage = ref<number>(1);
 const itemsPerPage = ref<number>(10);
 const formErrors = ref<FormErrors>({});
@@ -366,6 +381,9 @@ const formData = ref<WarehouseForm>({
 const availableProjects = ref<Project[]>([]); // Mevcut projeler için ref
 
 onMounted(async () => {
+    // Önce projeleri yükle - diğer işlemler öncesinde projeleri bilmemiz gerekiyor
+    await loadProjects();
+    
     // Firebase'de depolar var mı diye kontrol et ve test için bir depo ekle
     await checkAndAddTestWarehouse();
     await loadWarehouses();
@@ -373,9 +391,6 @@ onMounted(async () => {
 
     // Proje değişikliği dinleyicisi
     eventBus.on('project-changed', handleProjectChanged);
-
-    // Projeleri yükle
-    await loadProjects();
 });
 
 onBeforeUnmount(() => {
@@ -587,9 +602,13 @@ const viewStock = async (warehouse: Warehouse) => {
         warehouseStock.value = Array.isArray(stocks) ? stocks.map(stock => {
             // Ürün bilgisini products dizisinden ID'ye göre bul
             const product = inventoryStore.products.find(p => p.id === stock.productId);
+              // Proje bilgisini kontrol et
+            const projectId = stock.projectId;
+            
             return {
                 ...stock,
-                product: product || null
+                product: product || null,
+                projectId: projectId
             };
         }) : [];
     } catch (error) {
@@ -604,19 +623,37 @@ const closeStockModal = () => {
     selectedWarehouse.value = null;
     warehouseStock.value = [];
     stockSearchTerm.value = '';
+    stockProjectFilter.value = ''; // Proje filtresini de sıfırla
 };
 
 const filteredStock = computed(() => {
-    if (!stockSearchTerm.value) return warehouseStock.value;
+    // Önce stokları projeye göre filtreleyelim
+    let filtered = warehouseStock.value;
     
-    const searchTerm = stockSearchTerm.value.toLowerCase();
-    return warehouseStock.value.filter(stock => {
-        // Null kontrolü ekleyerek güvenli filtreleme yapma
-        const productName = stock.product?.name || '';
-        const productCode = stock.product?.code || '';
-        return productName.toLowerCase().includes(searchTerm) || 
-               productCode.toLowerCase().includes(searchTerm);
-    });
+    // Proje filtresi uygula
+    if (stockProjectFilter.value !== '') {
+        if (stockProjectFilter.value === 'null') {
+            // "Atanmamış" seçildi, projectId'si null, undefined veya boş string olan stokları göster
+            filtered = filtered.filter(stock => !stock.projectId);
+        } else {
+            // Belirli bir proje seçildi
+            filtered = filtered.filter(stock => stock.projectId === stockProjectFilter.value);
+        }
+    }
+    
+    // Metin araması uygula
+    if (stockSearchTerm.value) {
+        const searchTerm = stockSearchTerm.value.toLowerCase();
+        filtered = filtered.filter(stock => {
+            // Null kontrolü ekleyerek güvenli filtreleme yapma
+            const productName = stock.product?.name || '';
+            const productCode = stock.product?.code || '';
+            return productName.toLowerCase().includes(searchTerm) || 
+                  productCode.toLowerCase().includes(searchTerm);
+        });
+    }
+    
+    return filtered;
 });
 
 const getStockStatus = (stock: Stock): string => {
@@ -703,6 +740,12 @@ const loadWarehouseProjects = async () => {
 const getWarehouseProjects = (warehouseId: string): string[] => {
     // Mapping'den bu depoya ait proje adlarını döndür
     return warehouseProjectMap.value[warehouseId] || [];
+};
+
+// Proje ID'sine göre proje adını döndürür
+const getProjectName = (projectId: string): string => {
+    const project = availableProjects.value.find(p => p.id === projectId);
+    return project ? project.name : 'Bilinmeyen Proje';
 };
 
 // Projeleri yükle

@@ -63,12 +63,11 @@
                         <span v-else class="text-gray-500 ml-2">Toplam {{ toplamKayit }} kayıt</span>
                     </div>
                 </div>
-                <table class="table-striped">
-                    <thead>
+                <table class="table-striped">                    <thead>
                         <tr>
                             <th>Hareket No</th>
                             <th>Tarih</th>
-                            <th>Tip</th>
+                            <th>Proje</th>
                             <th>Ürün</th>
                             <th>Miktar</th>
                             <th>Kaynak Depo</th>
@@ -76,8 +75,7 @@
                             <th>İşlemler</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <tr v-if="yukleniyor">
+                    <tbody>                        <tr v-if="yukleniyor">
                             <td colspan="8" class="text-center">
                                 <div class="flex justify-center items-center p-4">
                                     <div class="animate-spin rounded-full h-6 w-6 border-2 border-primary border-l-transparent"></div>
@@ -87,17 +85,28 @@
                         <tr v-else-if="hareketler.length === 0">
                             <td colspan="8" class="text-center">Henüz stok hareketi bulunmamaktadır.</td>
                         </tr>
-                        <tr v-for="hareket in paginatedMovements" :key="hareket.id">
-                            <td>{{ hareket.movementNumber }}</td>
+                        <tr v-for="hareket in paginatedMovements" :key="hareket.id">                            <td>{{ hareket.movementNumber }}</td>
                             <td>{{ formatTarih(hareket.date) }}</td>
-                            <td>                                <span :class="{
-                                    'badge badge-success': hareket.type === 'in',
-                                    'badge badge-danger': hareket.type === 'out',
-                                    'badge badge-info': hareket.type === 'transfer',
-                                    'badge badge-warning': hareket.type === 'stock_add'
-                                }">
-                                    {{ getHareketTipi(hareket.type) }}
-                                </span>
+                            <td>
+                                <div class="flex flex-col gap-1">
+                                    <span :class="{
+                                        'badge badge-outline-info': hareket.sourceProjectId && hareket.sourceProjectId !== 'ApMkLHJ3Rk7BpmYuNm5Z',
+                                        'badge badge-outline-success': hareket.sourceProjectId === 'ApMkLHJ3Rk7BpmYuNm5Z'
+                                    }">
+                                        {{ hareket.sourceProjectId === 'ApMkLHJ3Rk7BpmYuNm5Z' ? 'KGYS' : getProjectName(hareket.sourceProjectId) }}
+                                        <span v-if="hareket.type === 'transfer' && hareket.targetProjectId && hareket.targetProjectId !== hareket.sourceProjectId">
+                                            → {{ hareket.targetProjectId === 'ApMkLHJ3Rk7BpmYuNm5Z' ? 'KGYS' : getProjectName(hareket.targetProjectId) }}
+                                        </span>
+                                    </span>
+                                    <span class="badge" :class="{
+                                        'badge-success': hareket.type === 'in',
+                                        'badge-danger': hareket.type === 'out',
+                                        'badge-info': hareket.type === 'transfer',
+                                        'badge-warning': hareket.type === 'stock_add'
+                                    }">
+                                        {{ getHareketTipi(hareket.type) }}
+                                    </span>
+                                </div>
                             </td>
                             <td>{{ hareket.product?.code }} - {{ hareket.product?.name }}</td>
                             <td>{{ hareket.quantity }} {{ hareket.product?.unit }}</td>
@@ -149,9 +158,20 @@
                 </div>
 
                 <form @submit.prevent="handleSubmit">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">                        <div class="mb-4">
+                            <label>Proje <span class="text-red-500">*</span></label>
+                            <select class="form-select" v-model="formVerisi.sourceProjectId" required :class="{'border-red-500': formHatalari.sourceProjectId}">
+                                <option value="">Proje Seçin</option>
+                                <option v-for="proje in projeler" :key="proje.id" :value="proje.id">
+                                    {{ proje.name }}
+                                </option>
+                            </select>
+                            <p v-if="formHatalari.sourceProjectId" class="text-red-500 text-xs mt-1">{{ formHatalari.sourceProjectId }}</p>
+                        </div>
+                        
                         <div class="mb-4">
-                            <label>Hareket Türü <span class="text-red-500">*</span></label>                            <select class="form-select" v-model="formVerisi.type" required :class="{'border-red-500': formHatalari.type}" @change="hareketTuruDegisti">
+                            <label>Hareket Türü <span class="text-red-500">*</span></label>
+                            <select class="form-select" v-model="formVerisi.type" required :class="{'border-red-500': formHatalari.type}" @change="hareketTuruDegisti">
                                 <option value="in">Stok Girişi</option>
                                 <option value="out">Stok Çıkışı</option>
                                 <option value="transfer">Transfer</option>
@@ -196,7 +216,7 @@
                             </select>                            <p v-if="formHatalari.sourceWarehouseId" class="text-red-500 text-xs mt-1">{{ formHatalari.sourceWarehouseId }}</p>
                             <p v-if="formVerisi.type === 'stock_add'" class="text-xs text-gray-500 mt-1">Stok ekleme işleminde kaynak depo sabit olarak kullanılır</p>
                             <p v-if="formVerisi.type === 'stock_add'" class="font-semibold text-primary mt-1">(Test Depo)</p>
-                        </div><div class="mb-4" v-if="formVerisi.type === 'transfer' || formVerisi.type === 'stock_add'">
+                        </div>                        <div class="mb-4" v-if="formVerisi.type === 'transfer' || formVerisi.type === 'stock_add'">
                             <label>Hedef Depo <span class="text-red-500">*</span></label>
                             <select class="form-select" v-model="formVerisi.targetWarehouseId" required
                                    :class="{'border-red-500': formHatalari.targetWarehouseId}">
@@ -207,6 +227,19 @@
                                 </option>
                             </select>
                             <p v-if="formHatalari.targetWarehouseId" class="text-red-500 text-xs mt-1">{{ formHatalari.targetWarehouseId }}</p>
+                        </div>
+                        
+                        <div class="mb-4" v-if="formVerisi.type === 'transfer'">
+                            <label>Hedef Proje</label>
+                            <select class="form-select" v-model="formVerisi.targetProjectId" 
+                                   :class="{'border-red-500': formHatalari.targetProjectId}">
+                                <option value="">Aynı Proje</option>
+                                <option v-for="proje in projeler" :key="proje.id" :value="proje.id">
+                                    {{ proje.name }}
+                                </option>
+                            </select>
+                            <p v-if="formHatalari.targetProjectId" class="text-red-500 text-xs mt-1">{{ formHatalari.targetProjectId }}</p>
+                            <p class="text-xs text-gray-500 mt-1">Boş bırakırsanız, kaynak projeyle aynı olacaktır</p>
                         </div>
 
                         <div class="mb-4 sm:col-span-2">
@@ -246,10 +279,18 @@
                         <div>
                             <label class="font-semibold">Tarih:</label>
                             <p>{{ formatTarih(seciliHareket.date) }}</p>
-                        </div>
-                        <div>
+                        </div>                        <div>
                             <label class="font-semibold">Hareket Türü:</label>
                             <p>{{ getHareketTipi(seciliHareket.type) }}</p>
+                        </div>
+                        <div>
+                            <label class="font-semibold">Proje:</label>
+                            <p v-if="seciliHareket.type === 'transfer' && seciliHareket.sourceProjectId !== seciliHareket.targetProjectId">
+                                {{ getProjectName(seciliHareket.sourceProjectId) }} → {{ getProjectName(seciliHareket.targetProjectId) }}
+                            </p>
+                            <p v-else>
+                                {{ getProjectName(seciliHareket.sourceProjectId) }}
+                            </p>
                         </div>
                         <div>
                             <label class="font-semibold">Ürün:</label>
@@ -287,6 +328,7 @@ import IconX from '@/components/icon/icon-x.vue';
 import IconEye from '@/components/icon/icon-eye.vue';
 import { useAuthStore } from '@/stores/auth-store';
 import { useInventoryStore } from '@/stores/inventory.js';
+import { useProjectStore } from '@/stores/projects';
 
 // Interface isimlerini Türkçeleştirme
 type MovementType = 'in' | 'out' | 'transfer' | 'stock_add';
@@ -317,6 +359,8 @@ interface StokHareketi {
     quantity: number;
     sourceWarehouseId: string;
     targetWarehouseId?: string;
+    sourceProjectId?: string;
+    targetProjectId?: string;
     description: string;
     product?: Urun;  // product alanını opsiyonel yaptık
     sourceWarehouse: Depo;
@@ -330,6 +374,8 @@ interface MovementForm {
     quantity: number;
     sourceWarehouseId: string;
     targetWarehouseId: string;
+    sourceProjectId?: string;
+    targetProjectId?: string;
     description: string;
 }
 
@@ -347,6 +393,8 @@ interface FormHatalari {
     quantity?: string;
     sourceWarehouseId?: string;
     targetWarehouseId?: string;
+    sourceProjectId?: string;
+    targetProjectId?: string;
 }
 
 const yukleniyor = ref(false);
@@ -356,6 +404,7 @@ const detayModalGoster = ref(false);
 const hareketler = ref<StokHareketi[]>([]);
 const depolar = ref<Depo[]>([]);
 const urunler = ref<Urun[]>([]);
+const projeler = ref<{id: string, name: string}[]>([]);
 const seciliHareket = ref<StokHareketi | null>(null);
 const hata = ref<string>('');
 const toplamKayit = ref(0);
@@ -374,6 +423,8 @@ const formVerisi = ref<MovementForm>({
     quantity: 0,
     sourceWarehouseId: '',
     targetWarehouseId: '',
+    sourceProjectId: '',
+    targetProjectId: '',
     description: ''
 });
 
@@ -384,6 +435,7 @@ const currentPage = ref(1);
 
 const authStore = useAuthStore();
 const inventoryStore = useInventoryStore();
+const projectStore = useProjectStore();
 
 onMounted(async () => {
     hata.value = '';
@@ -397,10 +449,11 @@ onMounted(async () => {
             console.log('Veri deposu başlatıldı');
         }
 
-        // İlk olarak depoları ve ürünleri yükle (bu bilgiler hareketler için gerekli)
+        // İlk olarak depoları, ürünleri ve projeleri yükle
         await Promise.all([
             loadWarehouses(),
-            loadProducts()
+            loadProducts(),
+            loadProjects()
         ]);
         
         // Son olarak hareketleri yükle
@@ -466,8 +519,7 @@ const loadMovements = async () => {
                     };
                 }
             }
-            
-            // Hareket nesnesini oluştur
+              // Hareket nesnesini oluştur
             const hareket: StokHareketi = {
                 id: m.id || '',
                 movementNumber: m.movementNumber || `HRK-${Math.random().toString(36).substr(2, 9)}`,
@@ -477,6 +529,8 @@ const loadMovements = async () => {
                 quantity: m.quantity || 0,
                 sourceWarehouseId: m.sourceWarehouseId || '',
                 targetWarehouseId: m.targetWarehouseId,
+                sourceProjectId: m.sourceProjectId || 'ApMkLHJ3Rk7BpmYuNm5Z',
+                targetProjectId: m.targetProjectId,
                 description: m.description || '',
                 product: ilgiliUrun,
                 sourceWarehouse: kaynakDepo,
@@ -559,6 +613,25 @@ const loadProducts = async () => {
     }
 };
 
+const loadProjects = async () => {
+    try {
+        await projectStore.loadUserProjects();
+        projeler.value = projectStore.projects.map(project => ({
+            id: project.id,
+            name: project.name
+        }));
+        
+        if (projeler.value.length === 0) {
+            console.warn('Hiç proje bulunamadı!');
+        } else {
+            console.log(`${projeler.value.length} proje yüklendi`);
+        }
+    } catch (err) {
+        console.error('Projeler yüklenirken hata oluştu:', err);
+        hata.value = 'Projeler yüklenirken hata oluştu. Lütfen sayfayı yenileyip tekrar deneyin.';
+    }
+};
+
 const formatTarih = (date: Date | string | undefined) => {
     if (!date) return '-';
     
@@ -608,6 +681,8 @@ const openAddModal = () => {
         quantity: 0,
         sourceWarehouseId: '',
         targetWarehouseId: '',
+        sourceProjectId: '',
+        targetProjectId: '',
         description: ''
     };
     formHatalari.value = {};
@@ -741,6 +816,11 @@ const validateForm = (): boolean => {
         }
     }
     
+    if (!formVerisi.value.sourceProjectId) {
+        formHatalari.value.sourceProjectId = 'Proje seçmelisiniz';
+        isValid = false;
+    }
+    
     if (!formVerisi.value.productId) {
         formHatalari.value.productId = 'Ürün seçmelisiniz';
         isValid = false;
@@ -831,7 +911,7 @@ const handleSubmit = async () => {
         // Hareket numarasını oluştur
         const hareketNo = `HRK${String(inventoryStore.getMovements.length + 1).padStart(4, '0')}`;
         console.log(`Yeni hareket numarası oluşturuluyor: ${hareketNo}`);        // Hareket verisi oluştur
-        const movementData = {
+        const movementData: any = {
             id: `HRK-${Math.random().toString(36).substr(2, 9)}`, // Generate a unique ID
             date: date.toISOString(),
             movementNumber: hareketNo,
@@ -839,9 +919,24 @@ const handleSubmit = async () => {
             productId: formVerisi.value.productId,
             quantity: quantity,
             sourceWarehouseId: formVerisi.value.sourceWarehouseId,
-            targetWarehouseId: (formVerisi.value.type === 'transfer' || formVerisi.value.type === 'stock_add') ? formVerisi.value.targetWarehouseId : undefined,
-            description: formVerisi.value.description || ''
+            description: formVerisi.value.description || '',
+            // Proje bilgilerini ekle
+            sourceProjectId: formVerisi.value.sourceProjectId || 'ApMkLHJ3Rk7BpmYuNm5Z' // Varsayılan olarak KGYS
         };
+        
+        // Hedef depo bilgilerini sadece gerekli durumlarda ekle
+        if (formVerisi.value.type === 'transfer' || formVerisi.value.type === 'stock_add') {
+            movementData.targetWarehouseId = formVerisi.value.targetWarehouseId;
+        }
+        
+        // Hedef proje bilgisini sadece transfer durumunda ve değer varsa ekle
+        if (formVerisi.value.type === 'transfer' && formVerisi.value.targetProjectId) {
+            movementData.targetProjectId = formVerisi.value.targetProjectId;
+        } else if (formVerisi.value.type === 'transfer') {
+            // Transfer ama hedef proje seçilmemişse kaynak projeyi kullan
+            movementData.targetProjectId = formVerisi.value.sourceProjectId || 'ApMkLHJ3Rk7BpmYuNm5Z';
+        }
+        // Transfer olmayan hareketlerde targetProjectId hiç eklenmez
         
         console.log('Hareket verisi Firestore\'a gönderiliyor:', movementData);
         
@@ -885,6 +980,14 @@ const getHareketTipi = (type: string): string => {
     }
 };
 
+const getProjectName = (projectId?: string): string => {
+    if (!projectId) return 'Atanmamış';
+    if (projectId === 'ApMkLHJ3Rk7BpmYuNm5Z') return 'KGYS';
+    
+    const proje = projeler.value.find(p => p.id === projectId);
+    return proje ? proje.name : 'Bilinmeyen Proje';
+};
+
 const canAddMovement = computed(() => {
     if (authStore.isAdmin) {
         return true;
@@ -906,6 +1009,11 @@ const hareketTuruDegisti = () => {
     // Öncelikle targetWarehouseId'yi sıfırla (transfer veya stock_add değilse bu alan gösterilmeyecek)
     formVerisi.value.targetWarehouseId = '';
     
+    // Transfer değilse targetProjectId'yi de temizle
+    if (formVerisi.value.type !== 'transfer') {
+        formVerisi.value.targetProjectId = '';
+    }
+    
     // Eğer seçilen hareket türü "stok ekleme" ise
     if (formVerisi.value.type === 'stock_add') {
         // Test Depo'yu bulmaya çalışalım (önce DEP001 kodlu, sonra "Test" içeren adı olan)
@@ -914,8 +1022,8 @@ const hareketTuruDegisti = () => {
         // DEP001 kodlu depo yoksa, "Test" kelimesi içeren bir depo bulmayı deneyelim
         if (!testDepo) {
             testDepo = depolar.value.find(depo => 
-                depo.name.toLowerCase().includes('test') || 
-                depo.code.toLowerCase().includes('test')
+                (depo.name && depo.name.toLowerCase().includes('test')) || 
+                (depo.code && depo.code.toLowerCase().includes('test'))
             );
         }
         

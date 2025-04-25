@@ -10,39 +10,68 @@
         </ul>
 
         <div class="pt-5">
-            <div class="grid sm:grid-cols-2 md:grid-cols-4 gap-6 mb-6">
-              <!-- ÜRÜN STOKLARI -->
+            <div class="grid sm:grid-cols-2 md:grid-cols-3 gap-6 mb-6">
+              <!-- ÜRÜN STOKLARI - 2 SÜTUNLU -->
               <div class="panel p-4">
                 <h6 class="font-semibold mb-2">Ürün Stokları</h6>
-                <ul class="list-disc pl-5 text-sm">
-                  <li v-for="(p, i) in productStocks" :key="i">{{ p.name }}: {{ p.total }}</li>
-                </ul>
+                <div class="text-sm">
+                  <div v-for="(category, i) in productStocks" :key="i" class="mb-3">
+                    <h6 class="font-semibold text-primary">{{ category.subCategory }} ({{ category.total }})</h6>
+                    <div class="grid grid-cols-2 gap-1">
+                      <div> 
+                      </div>
+                      <div v-if="category.products.length > 10">
+                    </div>
+                    </div>
+                    <div v-if="category.products.length > 20" class="italic text-xs text-right mt-1">
+                      ... daha fazla (toplam {{ category.products.length }} ürün)
+                    </div>
+                  </div>
+                </div>
               </div>
               <!-- KRİTİK STOK ÜRÜNLER -->
               <div class="panel p-4">
                 <h6 class="font-semibold mb-2">Kritik Stok</h6>
-                <ul class="list-disc pl-5 text-sm">
-                  <li v-for="(item, i) in lowStockProducts.slice(0, 5)" :key="i">
-                    {{ item.name }} ({{ item.quantity }}) - {{ item.warehouse }}
-                  </li>
-                </ul>
-              </div>
-              <!-- KATEGORİLER -->
-              <div class="panel p-4">
-                <h6 class="font-semibold mb-2">Kategoriler</h6>
-                <ul class="list-disc pl-5 text-sm">
-                  <li v-for="(cat, i) in categoriesList" :key="i">{{ cat }}</li>
-                </ul>
+                <div class="text-sm">
+                  <table class="w-full text-xs">
+                    <thead>
+                      <tr class="border-b">
+                        <th class="text-left py-1">Ürün</th>
+                        <th class="text-center py-1">Miktar</th>
+                        <th class="text-right py-1">Depo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(item, i) in lowStockProducts.slice(0, 7)" :key="i" class="border-b border-gray-100">
+                        <td class="py-1 truncate max-w-[120px]" :title="item.name">{{ item.name }}</td>
+                        <td class="py-1 text-center font-bold text-danger">{{ item.quantity }}</td>
+                        <td class="py-1 text-right truncate max-w-[80px]" :title="item.warehouse">{{ item.warehouse }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
               <!-- SON 5 HAREKET -->
               <div class="panel p-4">
                 <h6 class="font-semibold mb-2">Son 5 Hareket</h6>
-                <ul class="list-disc pl-5 text-sm">
-                  <li v-for="m in movementsList" :key="m.id">
-                    {{ m.type === 'in' ? 'Giriş' : m.type === 'out' ? 'Çıkış' : 'Transfer' }} {{ getProductName(m.productId) }} -
-                    {{ new Date(m.date).toLocaleDateString('tr-TR') }}
-                  </li>
-                </ul>
+                <div class="text-sm">
+                  <table class="w-full text-xs">
+                    <thead>
+                      <tr class="border-b">
+                        <th class="text-left py-1">Hareket</th>
+                        <th class="text-center py-1">Ürün Adı</th>
+                        <th class="text-right py-1">Tarih</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="m in movementsList" :key="m.id" class="border-b border-gray-100">
+                        <td class="py-1 truncate max-w-[120px]" :title="m.type">{{ m.type === 'in' ? 'Giriş' : m.type === 'out' ? 'Çıkış' : 'Transfer' }}</td>
+                        <td class="py-1 text-center font-bold text-danger">{{ getProductName(m.productId) }}</td>
+                        <td class="py-1 text-right truncate max-w-[80px]" :title="m.date">{{ new Date(m.date).toLocaleDateString('tr-TR') }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
 
@@ -1024,15 +1053,49 @@
         return warehouseMap.value[id] || id;
     }
 
+    // Gerekli type tanımlamaları
+    interface ProductItem {
+        name: string;
+        total: number;
+    }
+
+    interface CategoryGroup {
+        subCategory: string;
+        total: number;
+        products: ProductItem[];
+    }
+
     // 1. adım detaylı kartlar için hesaplamalar
-    const productStocks = computed(() => {
-   return inventoryStore.getProducts.map(p => {
-     const total = (isAdminUser.value || !authorizedDepot.value)
-       ? p.totalStock || 0
-       : inventoryStore.getStocksByWarehouseId(authorizedDepot.value!).filter(s => s.productId === p.id)
-           .reduce((sum, s) => sum + s.quantity, 0);
-     return { name: p.name, total };
-   });
+    const productStocks = computed<CategoryGroup[]>(() => {
+  // Önce ürünleri alt kategorilere göre gruplayalım
+  const bySubCategory = inventoryStore.getProducts.reduce<Record<string, CategoryGroup>>((acc, p) => {
+    // Alt kategori yoksa "Genel" olarak kabul edelim
+    const subCat = p.subCategory || 'Genel';
+    
+    // Alt kategoriye göre toplam stok hesaplaması
+    const total = (isAdminUser.value || !authorizedDepot.value)
+      ? p.totalStock || 0
+      : inventoryStore.getStocksByWarehouseId(authorizedDepot.value!).filter(s => s.productId === p.id)
+          .reduce((sum, s) => sum + s.quantity, 0);
+    
+    // Eğer bu alt kategori daha önce yoksa oluştur
+    if (!acc[subCat]) {
+      acc[subCat] = {
+        subCategory: subCat,
+        total: 0,
+        products: []
+      };
+    }
+    
+    // Bu ürünü alt kategoriye ekle ve toplamı güncelle
+    acc[subCat].products.push({ name: p.name, total });
+    acc[subCat].total += total;
+    
+    return acc;
+  }, {});
+  
+  // Alt kategorileri diziye dönüştür
+  return Object.values(bySubCategory);
 });
 
     const lowStockProducts = computed(() => {
