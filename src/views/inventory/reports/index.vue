@@ -581,15 +581,14 @@ const loadStockData = () => {
                 });
             }
         }
-        
-        console.log(`${processedStocks.length} geçerli stok kaydı işlendi`);
+          console.log(`${processedStocks.length} geçerli stok kaydı işlendi`);
         
         // Yetki ve filtre kontrolü
         let filteredData = [...processedStocks];
         
         // Yetki kontrolü
         if (!authStore.isAdmin) {
-            const yetkiliDepoCodu = authStore.getAuthorizedDepot();
+            const yetkiliDepoCodu = authStore.getAuthorizedDepot as string; // düzeltildi: fonksiyon değil, getter property
             const yetkiliDepo = warehouses.value.find(w => w.code === yetkiliDepoCodu);
             if (yetkiliDepo) {
                 filteredData = filteredData.filter(item => item.warehouse?.id === yetkiliDepo.id);
@@ -714,9 +713,8 @@ const loadMovementData = () => {
         console.log(`${movements.length} hareket kaydı işlendi`);
         
         let filteredData = [...movements];
-        
-        // Yetki kontolü
-        const yetkiliDepoCodu = !authStore.isAdmin ? authStore.getAuthorizedDepot() : null;
+          // Yetki kontolü
+        const yetkiliDepoCodu = !authStore.isAdmin ? (authStore.getAuthorizedDepot as string) : null;
         const yetkiliDepo = yetkiliDepoCodu ? warehouses.value.find(w => w.code === yetkiliDepoCodu) : null;
         
         if (yetkiliDepo) {
@@ -845,7 +843,7 @@ const loadLowStockData = () => {
         
         // Yetki kontrolü
         if (!authStore.isAdmin) {
-            const yetkiliDepoCodu = authStore.getAuthorizedDepot();
+            const yetkiliDepoCodu = authStore.getAuthorizedDepot as string; // düzeltildi: fonksiyon değil, getter property
             const yetkiliDepo = warehouses.value.find(w => w.code === yetkiliDepoCodu);
             if (yetkiliDepo) {
                 filteredData = filteredData.filter(item => item.warehouse?.id === yetkiliDepo.id);
@@ -876,7 +874,7 @@ const availableWarehouses = computed(() => {
     if (authStore.isAdmin) {
         return warehouses.value;
     }
-    const yetkiliDepoCodu = authStore.getAuthorizedDepot();
+    const yetkiliDepoCodu = authStore.getAuthorizedDepot as string; // düzeltildi: fonksiyon değil, getter property
     return warehouses.value.filter(w => w.code === yetkiliDepoCodu);
 });
 

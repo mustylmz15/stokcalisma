@@ -15,9 +15,9 @@
                     <div class="p-4 font-semibold border-b border-white-light dark:border-[#1b2e4b]">
                         Projelerim
                     </div>
-                    <div v-if="isProjectsLoading" class="p-4 text-center">
+                <div v-if="isProjectsLoading" class="p-4 text-center">
                         <div class="animate-spin inline-block w-5 h-5 border-2 border-primary border-l-transparent rounded-full align-middle mr-2"></div>
-                        Yükleniyor...
+                        Projeler yükleniyor...
                     </div>
                     <div v-else-if="projects.length === 0" class="p-4 text-center">
                         Henüz bir projeniz bulunmuyor.
@@ -84,6 +84,29 @@ const canManageProjects = computed(() => {
 // Toggle dropdown
 const toggleDropdown = () => {
     isDropdownOpen.value = !isDropdownOpen.value;
+    
+    // Dropdown açıldığında proje listesini yenile
+    if (isDropdownOpen.value) {
+        refreshProjects();
+    }
+};
+
+// Projeleri yenile
+const refreshProjects = async () => {
+    try {
+        // Sadece kısa bir süre loading gösterilsin
+        isProjectsLoading.value = true;
+        
+        // Projeleri yeniden yükle
+        await projectStore.loadUserProjects();
+    } catch (error) {
+        console.error('Projeler güncellenirken hata oluştu:', error);
+    } finally {
+        // 300ms sonra loading'i kapat (daha iyi kullanıcı deneyimi için)
+        setTimeout(() => {
+            isProjectsLoading.value = false;
+        }, 300);
+    }
 };
 
 // Dropdown dışına tıklandığında kapanma
@@ -98,20 +121,23 @@ const handleClickOutside = (event: MouseEvent) => {
 onMounted(async () => {
     // Click outside listener ekleme
     document.addEventListener('click', handleClickOutside);
-      if (!projectStore.isInitialized) {
-        try {
-            // Kullanıcı projelerini yüklerken isProjectsLoading değerini aktif et
-            isProjectsLoading.value = true;
-            
+
+    try {
+        // Kullanıcı projelerini yüklerken isProjectsLoading değerini aktif et
+        isProjectsLoading.value = true;
+        
+        if (!projectStore.isInitialized) {
             // Sadece initializeStore çağırarak projeleri yükle
             // (loadUserProjects zaten initializeStore içinde çağrılıyor)
             await projectStore.initializeStore();
-        } catch (error) {
-            console.error('Projeler yüklenirken hata oluştu:', error);
-        } finally {
-            isProjectsLoading.value = false;
+        } else {
+            // Eğer store zaten başlatılmışsa, projeleri yenilemek için loadUserProjects çağır
+            await projectStore.loadUserProjects();
         }
-    } else {
+    } catch (error) {
+        console.error('Projeler yüklenirken hata oluştu:', error);
+    } finally {
+        // Her durumda loading değerini false yap
         isProjectsLoading.value = false;
     }
 });
@@ -130,7 +156,10 @@ const selectProject = async (project) => {
         await projectStore.setActiveProject(project.id);
         
         // Eğer proje sayısı 0 ise proje yönetim sayfasına git
-        if (projects.value.length === 0) return navigateToProjects();
+        if (projects.value.length === 0) {
+            isProjectsLoading.value = false;
+            return navigateToProjects();
+        }
         
         // Envanter bilgilerini projeye göre filtrele
         const inventoryStore = useInventoryStore();
@@ -139,17 +168,23 @@ const selectProject = async (project) => {
         // Proje değişti eventi yayınla
         eventBus.emit('project-changed', project.id);
         
+        // İşlem tamamlandığında loading kapatılıyor
+        isProjectsLoading.value = false;
         isDropdownOpen.value = false;
     } catch (error) {
         isProjectsLoading.value = false;
-        
         console.error('Proje değiştirirken hata:', error);
+    } finally {
+        // Her durumda loading kapatılıyor
+        isProjectsLoading.value = false;
     }
 };
 
 // Proje yönetim sayfasına gitme fonksiyonu
 const navigateToProjects = () => {
     isDropdownOpen.value = false;
+    // Yükleme durumunu sıfırla
+    isProjectsLoading.value = false;
     router.push('/projeler');
 };
 </script>

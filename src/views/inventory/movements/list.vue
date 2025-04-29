@@ -485,6 +485,8 @@ const loadMovements = async () => {
             await loadProducts();
         }
         
+        console.log('Hareketler yükleniyor. Toplam:', movements.length);
+        
         // Şimdi her hareket için doğru ürün ve depo bilgilerini ekleyelim
         hareketler.value = movements.map(m => {
             // İlgili ürünü bul
@@ -714,7 +716,12 @@ const filteredMovements = computed(() => {
     }
     
     try {
-        let result = [...hareketler.value];
+        // Hareketleri kopyala ve tarihe göre tersine sırala (en yeni en üstte)
+        let result = [...hareketler.value].sort((a, b) => {
+            const dateA = new Date(a.date).getTime();
+            const dateB = new Date(b.date).getTime();
+            return dateB - dateA; // Azalan sıralama (en yeni önce)
+        });
         
         // Admin değilse sadece kendi deposuna ait hareketleri göster
         if (!authStore.isAdmin) {

@@ -14,19 +14,29 @@
               <!-- ÜRÜN STOKLARI - 2 SÜTUNLU -->
               <div class="panel p-4">
                 <h6 class="font-semibold mb-2">Ürün Stokları</h6>
-                <div class="text-sm">
-                  <div v-for="(category, i) in productStocks" :key="i" class="mb-3">
-                    <h6 class="font-semibold text-primary">{{ category.subCategory }} ({{ category.total }})</h6>
-                    <div class="grid grid-cols-2 gap-1">
-                      <div> 
-                      </div>
-                      <div v-if="category.products.length > 10">
-                    </div>
-                    </div>
-                    <div v-if="category.products.length > 20" class="italic text-xs text-right mt-1">
-                      ... daha fazla (toplam {{ category.products.length }} ürün)
-                    </div>
-                  </div>
+                <div v-if="productStocks && productStocks.length > 0" class="text-sm">
+                  <table class="w-full text-xs">
+                    <thead>
+                      <tr class="border-b">
+                        <th class="text-left py-1">Ürün</th>
+                        <th class="text-right py-1">Stok</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(category, i) in productStocks" :key="i" class="mb-3">
+                        <td class="py-1 truncate max-w-[120px]" :title="category.subCategory">{{ category.subCategory }}</td>
+                        <td class="py-1 text-right font-bold text-danger truncate max-w-[80px]" :title="category.total.toString()">{{ category.total }}</td>
+                        <div v-if="category.products.length > 10">
+                        </div>
+                        <div v-if="category.products.length > 20" class="italic text-xs text-right mt-1">
+                        ... daha fazla (toplam {{ category.products.length }} ürün)
+                        </div>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div v-else class="flex items-center justify-center h-40 text-gray-500 italic">
+                  Görüntülenecek stok verisi bulunamadı.
                 </div>
               </div>
               <!-- KRİTİK STOK ÜRÜNLER -->
@@ -115,13 +125,13 @@
 
                 <div class="panel h-full">
                     <div class="flex items-center mb-5">
-                        <h5 class="font-semibold text-lg dark:text-white-light">Sales By Category</h5>
+                        <h5 class="font-semibold text-lg dark:text-white-light">Alt Kategorilere Göre Stoklar</h5>
                     </div>
                     <div>
                         <apexchart
                             height="460"
-                            :options="salesByCategory"
-                            :series="salesByCategorySeries"
+                            :options="subCategoryChart"
+                            :series="subcategorySeries"
                             class="bg-white dark:bg-black rounded-lg overflow-hidden"
                         >
                             <!-- loader -->
@@ -214,63 +224,7 @@
                             </div>
                         </apexchart>
                     </div>
-                </div>
-
-                <div class="panel h-full">
-                    <div class="flex items-center dark:text-white-light mb-5">
-                        <h5 class="font-semibold text-lg">Summary</h5>
-                        <div class="dropdown ltr:ml-auto rtl:mr-auto">
-                          <Popper :placement="store.rtlClass === 'rtl' ? 'bottom-start' : 'bottom-end'" offsetDistance="0" class="align-middle">
-                            <a href="javascript:;"><icon-horizontal-dots class="w-5 h-5 text-black/70 dark:text-white/70 hover:!text-primary"/></a>
-                            <template #content="{ close }">
-                              <ul @click="close()">
-                                <li><a href="javascript:;">View Report</a></li>
-                                <li><a href="javascript:;">Edit Report</a></li>
-                                <li><a href="javascript:;">Mark as Done</a></li>
-                              </ul>
-                            </template>
-                          </Popper>
-                        </div>
-                    </div>
-                    <div class="space-y-9">
-                      <div class="flex items-center">
-                        <div class="w-full">
-                          <div class="flex justify-between">
-                            <span class="text-xs font-semibold text-white-dark dark:text-white/60">Ürün Stokları</span>
-                            <span class="text-xs font-semibold text-white-dark dark:text-white/60">{{ totalProducts }}</span>
-                          </div>
-                          <div class="h-2.5 bg-white-light/30 dark:bg-white/10 rounded-full">
-                            <div class="h-2.5 bg-primary rounded-full" :style="{ width: `${(totalProducts / 100) * 100}%` }"></div>
-                          </div>
-                        </div>
-                      </div>
-                      <div class="flex items-center">
-                        <div class="w-full">
-                          <div class="flex justify-between">
-                            <span class="text-xs font-semibold text-white-dark dark:text-white/60">Düşük Stok</span>
-                            <span class="text-xs font-semibold text-white-dark dark:text-white/60">{{ lowStockCount }}</span>
-                          </div>
-                          <div class="h-2.5 bg-white-light/30 dark:bg-white/10 rounded-full">
-                            <div class="h-2.5 bg-danger rounded-full" :style="{ width: `${(lowStockCount / 100) * 100}%` }"></div>
-                          </div>
-                        </div>
-                      </div>
-                      <div class="flex items-center">
-                        <div class="w-full">
-                          <div class="flex justify-between">
-                            <span class="text-xs font-semibold text-white-dark dark:text-white/60">Toplam Kategori</span>
-                            <span class="text-xs font-semibold text-white-dark dark:text-white/60">{{ totalCategories }}</span>
-                          </div>
-                          <div class="h-2.5 bg-white-light/30 dark:bg-white/10 rounded-full">
-                            <div class="h-2.5 bg-success rounded-full" :style="{ width: `${(totalCategories / 100) * 100}%` }"></div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
+                </div>           
                 <div class="panel h-full sm:col-span-2 xl:col-span-1 pb-0">
                     <h5 class="font-semibold text-lg dark:text-white-light mb-5">Son Hareketler</h5>
 
@@ -327,76 +281,6 @@
                     </apexchart>
                 </div>
             </div>
-
-            <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
-                <div class="panel h-full p-0 border-0 overflow-hidden">
-                    <div class="p-6 bg-gradient-to-r from-[#4361ee] to-[#160f6b] min-h-[190px]">
-                        <div class="flex justify-between items-center mb-6">
-                            <div class="bg-black/50 rounded-full p-1 ltr:pr-3 rtl:pl-3 flex items-center text-white font-semibold">
-                                <img
-                                    class="w-8 h-8 rounded-full border-2 border-white/50 block object-cover ltr:mr-1 rtl:ml-1"
-                                    src="/assets/images/profile-34.jpeg"
-                                    alt=""
-                                />
-                                Alan Green
-                            </div>
-                            <button
-                                type="button"
-                                class="ltr:ml-auto rtl:mr-auto flex items-center justify-between w-9 h-9 bg-black text-white rounded-md hover:opacity-80"
-                            >
-                                <icon-plus class="w-6 h-6 m-auto" />
-                            </button>
-                        </div>
-                        <div class="text-white flex justify-between items-center">
-                            <p class="text-xl">Wallet Balance</p>
-                            <h5 class="ltr:ml-auto rtl:mr-auto text-2xl"><span class="text-white-light">$</span>2953</h5>
-                        </div>
-                    </div>
-                    <div class="-mt-12 px-8 grid grid-cols-2 gap-2">
-                        <div class="bg-white rounded-md shadow px-4 py-2.5 dark:bg-[#060818]">
-                            <span class="flex justify-between items-center mb-4 dark:text-white"
-                                >Received
-                                <icon-caret-down class="w-4 h-4 text-success rotate-180" />
-                            </span>
-                            <div class="btn w-full py-1 text-base shadow-none border-0 bg-[#ebedf2] dark:bg-black text-[#515365] dark:text-[#bfc9d4]">
-                                $97.99
-                            </div>
-                        </div>
-                        <div class="bg-white rounded-md shadow px-4 py-2.5 dark:bg-[#060818]">
-                            <span class="flex justify-between items-center mb-4 dark:text-white"
-                                >Spent
-                                <icon-caret-down class="w-4 h-4 text-danger" />
-                            </span>
-                            <div class="btn w-full py-1 text-base shadow-none border-0 bg-[#ebedf2] dark:bg-black text-[#515365] dark:text-[#bfc9d4]">
-                                $53.00
-                            </div>
-                        </div>
-                    </div>
-                    <div class="p-5">
-                        <div class="mb-5">
-                            <span
-                                class="bg-[#1b2e4b] text-white text-xs rounded-full px-4 py-1.5 before:bg-white before:w-1.5 before:h-1.5 before:rounded-full ltr:before:mr-2 rtl:before:ml-2 before:inline-block"
-                                >Pending</span
-                            >
-                        </div>
-                        <div class="mb-5 space-y-1">
-                            <div class="flex items-center justify-between">
-                                <p class="text-[#515365] font-semibold">Netflix</p>
-                                <p class="text-base"><span>$</span> <span class="font-semibold">13.85</span></p>
-                            </div>
-                            <div class="flex items-center justify-between">
-                                <p class="text-[#515365] font-semibold">BlueHost VPN</p>
-                                <p class="text-base"><span>$</span> <span class="font-semibold">15.66</span></p>
-                            </div>
-                        </div>
-                        <div class="text-center px-2 flex justify-around">
-                            <button type="button" class="btn btn-secondary ltr:mr-2 rtl:ml-2">View Details</button>
-                            <button type="button" class="btn btn-success">Pay Now $29.51</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="panel h-full w-full">
                     <div class="flex items-center justify-between mb-5">
@@ -619,8 +503,56 @@
     import { useInventoryStore } from '@/stores/inventory';
     import { useAuthStore } from '@/stores/auth-store';
     const inventoryStore = useInventoryStore();
-    onMounted(() => {
-        inventoryStore.initializeStore();
+    onMounted(async () => {
+        try {
+            console.log('Dashboard yükleniyor...');
+            
+            // Store'ları başlat
+            if (!inventoryStore.isInitialized) {
+                console.log('Envanter deposu başlatılıyor...');
+                await inventoryStore.initializeStore();
+                console.log('Envanter deposu başlatıldı.');
+            } else {
+                console.log('Envanter deposu zaten başlatılmış.');
+            }
+            
+            // Stok verilerini kontrol et
+            console.log('Stoklar:', inventoryStore.stocks.length);
+            console.log('Ürünler:', inventoryStore.getProducts.length);
+            console.log('Depolar:', inventoryStore.getWarehouses.length);
+            
+            // Depo kullanıcıları için filtrelerin çalışıp çalışmadığını kontrol et
+            if (!isAdminUser.value && authorizedDepot.value) {
+                console.log('Depo kullanıcısı için filtre: Yetkili Depo =', authorizedDepot.value);
+                const depoObj = inventoryStore.getWarehouses.find(w => w.code === authorizedDepot.value);
+                
+                if (depoObj) {
+                    console.log(`Depo bulundu: ${depoObj.name} (ID: ${depoObj.id})`);
+                    const depoStocks = inventoryStore.stocks.filter(s => s.warehouseId === depoObj.id);
+                    console.log(`${depoObj.name} deposunda ${depoStocks.length} adet stok kaydı var.`);
+                } else {
+                    console.warn('Depo bulunamadı:', authorizedDepot.value);
+                }
+            }
+            
+            // Kartlardaki veri durumunu kontrol et - kısa bir gecikme ile yap ki computed'lar güncellensin
+            setTimeout(() => {
+                console.log('Alt kategoriler:', productStocks.value);
+                console.log('Kritik stok ürünleri:', lowStockProducts.value);
+                console.log('Son hareketler:', movementsList.value);
+                
+                // Veriler boşsa uyarı ver
+                if (!productStocks.value || productStocks.value.length === 0) {
+                    console.warn('Alt kategoriler verisinde değer bulunamadı. Hesaplama fonksiyonunu kontrol et!');
+                }
+                
+                if (!lowStockProducts.value || lowStockProducts.value.length === 0) {
+                    console.warn('Kritik stok ürünleri bulunamadı, ancak bu normal olabilir.');
+                }
+            }, 500);
+        } catch (error) {
+            console.error('Veriler yüklenirken hata oluştu:', error);
+        }
     });
     // auth store for role and depot filtering
     const authStore = useAuthStore();
@@ -1027,18 +959,143 @@
         },
     ]);
 
+    // Alt kategorilere göre stoklar grafiği - Gerçek veriler
+    const subCategoryItems = computed(() => {
+        if (!productStocks.value) return [];
+        return productStocks.value.filter(item => item && item.total > 0);
+    });
+    
+    const subcategoryLabels = computed(() => {
+        // productStocks'dan sadece alt kategori isimlerini alıyoruz
+        return subCategoryItems.value.map(item => item.subCategory || 'Diğer');
+    });
+    
+    const subcategorySeries = computed(() => {
+        // productStocks'dan sadece toplam değerleri alıyoruz
+        if (subCategoryItems.value.length === 0) return [0]; 
+        return subCategoryItems.value.map(item => item.total);
+    });
+    
+    const subCategoryChart = computed(() => {
+        const isDark = store.theme === 'dark' || store.isDarkMode ? true : false;
+        return {
+            chart: {
+                type: 'donut',
+                height: 460,
+                fontFamily: 'Nunito, sans-serif',
+                events: {
+                    mounted: (chart) => {
+                        // Grafik yüklendikten sonra doğru yüzdeleri gösterdiğinden emin ol
+                        chart.windowResizeHandler();
+                    }
+                }
+            },
+            dataLabels: {
+                enabled: true,
+                formatter: (val: number, opts: any) => {
+                    // Toplam hesaplanarak yüzde elde ediliyor
+                    const totals = opts.w.globals.seriesTotals;
+                    const totalAll = totals.reduce((a: number, b: number) => a + b, 0);
+                    // Yüzde değerini hesapla ve iki basamağa yuvarla
+                    return totalAll > 0 ? Math.round((val / totalAll) * 100) + '%' : '0%';
+                },
+                style: {
+                    fontSize: '14px',
+                    fontFamily: 'Nunito, sans-serif',
+                    fontWeight: 'bold'
+                }
+            },
+            colors: isDark ? 
+                ['#5c1ac3', '#e2a03f', '#e7515a', '#8dbf42', '#1abc9c', '#3498db'] : 
+                ['#e2a03f', '#5c1ac3', '#e7515a', '#8dbf42', '#1abc9c', '#3498db'],
+            stroke: {
+                width: 2,
+                colors: [isDark ? '#0e1726' : '#fff']
+            },
+            legend: {
+                position: 'bottom',
+                horizontalAlign: 'center',
+                fontSize: '14px'
+            },
+            plotOptions: {
+                pie: {
+                    donut: {
+                        size: '65%',
+                        labels: {
+                            show: true,
+                            name: {
+                                show: true,
+                                fontSize: '22px',
+                                formatter: (val) => val
+                            },
+                            value: {
+                                show: true,
+                                fontSize: '20px',
+                                formatter: (val) => val
+                            },
+                            total: {
+                                show: true,
+                                label: 'Toplam',
+                                color: '#888ea8',
+                                fontSize: '22px',
+                                formatter: (w: any) => {
+                                    try {
+                                        return w.globals.seriesTotals.reduce((a: any, b: any) => a + b, 0);
+                                    } catch (e) {
+                                        console.error('Toplam hesaplama hatası:', e);
+                                        return 0;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            labels: subcategoryLabels.value.length > 0 ? subcategoryLabels.value : ['Veri Yok'],
+            noData: {
+                text: 'Veri bulunamadı',
+                align: 'center',
+                verticalAlign: 'middle',
+                style: {
+                    color: isDark ? '#bfc9d4' : '#000000',
+                    fontSize: '14px',
+                    fontFamily: 'Nunito, sans-serif'
+                }
+            }
+        };
+    });
+
     // Son hareketler verisi ve yardımcı fonksiyonlar
     const movementsList = computed(() => {
-   let list = inventoryStore.getProjectMovements.slice()
-     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-     .slice(0, 5);
-   if (!isAdminUser.value && authorizedDepot.value) {
-     list = list.filter(m =>
-       m.sourceWarehouseId === authorizedDepot.value ||
-       m.targetWarehouseId === authorizedDepot.value
-     );
-   }
-   return list;
+        // Önce tüm hareketleri al
+        let allMovements = inventoryStore.getProjectMovements;
+        
+        if (!allMovements || allMovements.length === 0) {
+            console.warn('Hareket verisi bulunamadı');
+            return [];
+        }
+        
+        // Depo kullanıcısı için filtreleme yap
+        if (!isAdminUser.value && authorizedDepot.value) {
+            // Depo ID'sini bul
+            const depoObj = inventoryStore.getWarehouses.find(w => w.code === authorizedDepot.value);
+            const depoId = depoObj ? depoObj.id : null;
+            
+            if (depoId) {
+                // Yetkilendirilen depoyu içeren hareketleri filtrele
+                allMovements = allMovements.filter(m => 
+                    m.sourceWarehouseId === depoId || 
+                    m.targetWarehouseId === depoId
+                );
+            } else {
+                console.warn('Yetkilendirilen depo bulunamadı:', authorizedDepot.value);
+            }
+        }
+        
+        // En son 5 hareketi göster
+        return allMovements
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            .slice(0, 5);
     });
     const productMap = computed(() =>
         inventoryStore.products.reduce((map, p) => ({ ...map, [p.id]: p.name }), {} as Record<string, string>)
@@ -1065,44 +1122,106 @@
         products: ProductItem[];
     }
 
-    // 1. adım detaylı kartlar için hesaplamalar
-    const productStocks = computed<CategoryGroup[]>(() => {
-  // Önce ürünleri alt kategorilere göre gruplayalım
-  const bySubCategory = inventoryStore.getProducts.reduce<Record<string, CategoryGroup>>((acc, p) => {
-    // Alt kategori yoksa "Genel" olarak kabul edelim
-    const subCat = p.subCategory || 'Genel';
-    
-    // Alt kategoriye göre toplam stok hesaplaması
-    const total = (isAdminUser.value || !authorizedDepot.value)
-      ? p.totalStock || 0
-      : inventoryStore.getStocksByWarehouseId(authorizedDepot.value!).filter(s => s.productId === p.id)
-          .reduce((sum, s) => sum + s.quantity, 0);
-    
-    // Eğer bu alt kategori daha önce yoksa oluştur
-    if (!acc[subCat]) {
-      acc[subCat] = {
-        subCategory: subCat,
-        total: 0,
-        products: []
-      };
-    }
-    
-    // Bu ürünü alt kategoriye ekle ve toplamı güncelle
-    acc[subCat].products.push({ name: p.name, total });
-    acc[subCat].total += total;
-    
-    return acc;
-  }, {});
-  
-  // Alt kategorileri diziye dönüştür
-  return Object.values(bySubCategory);
-});
+    // Alt kategori istatistikleri - Gerçek veriler
+    const productStocks = computed(() => {
+        try {
+            // Tüm ürünleri al
+            if (!inventoryStore.getProducts || inventoryStore.getProducts.length === 0) {
+                console.warn('Henüz ürün verisi yüklenemedi');
+                return [];
+            }
+            
+            // Depo kullanıcı için doğru depodaki stokları bulalım
+            let depotId: string | null = null;
+            if (!isAdminUser.value && authorizedDepot.value) {
+                // Depo ID'sini bulmak için depo kodunu kullan
+                const depoObj = inventoryStore.getWarehouses.find(w => w.code === authorizedDepot.value);
+                depotId = depoObj ? depoObj.id : null;
+                
+                if (depotId === null) {
+                    console.warn('Depo kullanıcısı için depo ID bulunamadı:', authorizedDepot.value);
+                }
+            }
+            
+            // Stok bilgilerini hazırla
+            console.log('Stok hesaplaması yapılıyor...');
+            
+            // Ürünleri filtrele (tüm ürünleri başlangıçta dahil et)
+            let products = inventoryStore.getProducts;
+            
+            // Alt kategoriye göre grupla
+            const bySubCategory: Record<string, CategoryGroup> = {};
+            for (const p of products) {
+                if (!p) continue;
+                // Alt kategori bilgisini al veya varsayılan değer ata
+                const subCat = p.subCategory || 'Diğer';
+                // Bu alt kategori için kayıt oluştur (yoksa)
+                if (!bySubCategory[subCat]) {
+                    bySubCategory[subCat] = { subCategory: subCat, total: 0, products: [] };
+                }
+                
+                // Ürünün depolardaki toplam stok miktarı hesaplanıyor
+                let productTotal = 0;
+                
+                if (isAdminUser.value || depotId === null) {
+                    // Admin kullanıcı ise veya depotId bulunamadıysa tüm depolar için toplam stok
+                    productTotal = (p.totalStock || 0);
+                } else {
+                    // Depo kullanıcısı için sadece kendi deposundaki ürünlerin stok miktarı
+                    const depotStocks = inventoryStore.stocks
+                        .filter(s => s.warehouseId === depotId && s.productId === p.id);
+                    
+                    productTotal = depotStocks.reduce((sum, s) => sum + s.quantity, 0);
+                    
+                    // Hata ayıklama için stok durumunu loglama
+                    if (productTotal > 0) {
+                        console.log(`Depo ${depotId} için ürün ${p.id} (${p.name}) stoğu:`, productTotal);
+                    }
+                }
+                        
+                // Bu ürünü alt kategoriye ekle ve toplamı güncelle
+                if (productTotal > 0) {  // Sadece stok miktarı olanları ekle
+                    bySubCategory[subCat].products.push({ name: p.name, total: productTotal });
+                    bySubCategory[subCat].total += productTotal;
+                }
+            }
+            // Sadece ürün içeren alt kategorileri filtrele ve döndür
+            const result = Object.values(bySubCategory).filter(cat => cat.products.length > 0);
+            
+            console.log(`Stok hesaplaması tamamlandı: ${result.length} alt kategori, toplam ${result.reduce((sum, cat) => sum + cat.products.length, 0)} ürün.`);
+            
+            return result;
+        } catch (error) {
+            console.error('Alt kategori stokları hesaplanırken hata oluştu:', error);
+            return [];
+        }
+    });
 
     const lowStockProducts = computed(() => {
+   // Tüm kritik stok ürünlerini al
    const stocks = inventoryStore.getLowStockProducts;
-   const filtered = (isAdminUser.value || !authorizedDepot.value)
-     ? stocks
-     : stocks.filter(s => s.warehouseId === authorizedDepot.value!);
+   
+   if (!stocks || stocks.length === 0) {
+     return [];
+   }
+   
+   let filtered = stocks;
+   
+   if (!isAdminUser.value && authorizedDepot.value) {
+     // Depo ID'sini bulmak için depo kodunu kullan
+     const depoObj = inventoryStore.getWarehouses.find(w => w.code === authorizedDepot.value);
+     const depoId = depoObj ? depoObj.id : null;
+     
+     if (depoId) {
+       // Sadece yetkilendirilen depodaki kritik stok ürünlerini filtrele
+       filtered = stocks.filter(s => s.warehouseId === depoId);
+     } else {
+       console.warn('Depo kullanıcısı için depo ID bulunamadı:', authorizedDepot.value);
+       return []; // Depo bulunamadıysa boş liste döndür
+     }
+   }
+   
+   // İsim, miktar ve depo adı bilgilerini dön
    return filtered.map(s => ({
      name: getProductName(s.productId),
      quantity: s.quantity,
@@ -1173,21 +1292,63 @@
 
     // Summary bölümü için istatistikler
 const totalProducts = computed(() => {
-  const products = isAdminUser.value || !authorizedDepot.value
-    ? inventoryStore.getProducts.length
-    : inventoryStore.getProducts.filter(p => 
-        inventoryStore.getStocksByWarehouseId(authorizedDepot.value!)
-          .some(s => s.productId === p.id)
+  try {
+    let products;
+    
+    if (isAdminUser.value || !authorizedDepot.value) {
+      // Admin kullanıcı veya yetkili depo yoksa tüm ürünleri say
+      products = inventoryStore.getProducts.length;
+    } else {
+      // Yetkili depo varsa o depodaki ürünleri say
+      const depoObj = inventoryStore.getWarehouses.find(w => w.code === authorizedDepot.value);
+      const depoId = depoObj ? depoObj.id : null;
+      
+      if (!depoId) {
+        console.warn('Depo ID bulunamadı:', authorizedDepot.value);
+        return 0;
+      }
+      
+      // Depodaki stokları bul ve bu ürünleri filtrele
+      const depoStokları = inventoryStore.getStocksByWarehouseId(depoId);
+      products = inventoryStore.getProducts.filter(p => 
+        depoStokları.some(s => s.productId === p.id)
       ).length;
-  return products;
+    }
+    
+    return products;
+  } catch (error) {
+    console.error('Toplam ürün sayısı hesaplanırken hata:', error);
+    return 0;
+  }
 });
 
 const lowStockCount = computed(() => {
-  const stocks = inventoryStore.getLowStockProducts;
-  const filtered = (isAdminUser.value || !authorizedDepot.value)
-    ? stocks
-    : stocks.filter(s => s.warehouseId === authorizedDepot.value!);
-  return filtered.length;
+  try {
+    // Kritik stok ürünlerini al
+    const stocks = inventoryStore.getLowStockProducts;
+    let filtered;
+    
+    if (isAdminUser.value || !authorizedDepot.value) {
+      // Admin kullanıcı veya yetkili depo yoksa tüm kritik stokları say
+      filtered = stocks;
+    } else {
+      // Yetkili depo varsa o depodaki kritik stokları say
+      const depoObj = inventoryStore.getWarehouses.find(w => w.code === authorizedDepot.value);
+      const depoId = depoObj ? depoObj.id : null;
+      
+      if (!depoId) {
+        console.warn('Depo ID bulunamadı:', authorizedDepot.value);
+        return 0;
+      }
+      
+      filtered = stocks.filter(s => s.warehouseId === depoId);
+    }
+    
+    return filtered.length;
+  } catch (error) {
+    console.error('Kritik stok sayısı hesaplanırken hata:', error);
+    return 0;
+  }
 });
 
 const totalCategories = computed(() => {
@@ -1199,17 +1360,40 @@ const totalCategories = computed(() => {
     const searchTerm = ref('');
     const categoryFilter = ref('');
     const filteredProducts = computed(() => {
-   const base = (isAdminUser.value || !authorizedDepot.value)
-     ? inventoryStore.getProducts
-     : inventoryStore.getProducts.filter(p =>
-         inventoryStore.getStocksByWarehouseId(authorizedDepot.value!).some(s => s.productId === p.id)
-       );
-   return base.filter(p => {
-     const matchesSearch = !searchTerm.value ||
-       p.name.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
-       p.code.toLowerCase().includes(searchTerm.value.toLowerCase());
-     const matchesCategory = !categoryFilter.value || p.category.name === categoryFilter.value;
-     return matchesSearch && matchesCategory;
-   });
+   try {
+       let base;
+       
+       if (isAdminUser.value || !authorizedDepot.value) {
+           // Admin veya yetkili depo yoksa tüm ürünleri göster
+           base = inventoryStore.getProducts;
+       } else {
+           // Yetkili depo varsa o depodaki ürünleri filtrele
+           const depoObj = inventoryStore.getWarehouses.find(w => w.code === authorizedDepot.value);
+           const depoId = depoObj ? depoObj.id : null;
+           
+           if (!depoId) {
+               console.warn('Depo ID bulunamadı:', authorizedDepot.value);
+               return []; // Depo bulunamadıysa boş liste döndür
+           }
+           
+           // Depodaki stokları bul ve bu ürünleri filtrele
+           const depoStokları = inventoryStore.getStocksByWarehouseId(depoId);
+           base = inventoryStore.getProducts.filter(p =>
+               depoStokları.some(s => s.productId === p.id)
+           );
+       }
+       
+       // Arama ve kategori filtrelerini uygula
+       return base.filter(p => {
+           const matchesSearch = !searchTerm.value ||
+               p.name.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
+               p.code.toLowerCase().includes(searchTerm.value.toLowerCase());
+           const matchesCategory = !categoryFilter.value || p.category.name === categoryFilter.value;
+           return matchesSearch && matchesCategory;
+       });
+   } catch (error) {
+       console.error('Ürün filtrelemede hata:', error);
+       return [];
+   }
 });
 </script>
