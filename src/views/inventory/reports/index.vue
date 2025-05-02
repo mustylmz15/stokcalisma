@@ -220,10 +220,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, onMounted } from 'vue';
+import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useAuthStore } from '@/stores/auth-store';
-import { useInventoryStore } from '@/stores/inventory.js';
+import { useInventoryStore } from '@/stores/inventory';
 import { useProjectStore } from '@/stores/projects';
+import { eventBus } from '@/composables/eventBus'; // Doğru yol: @/composables/eventBus
 
 // Tip tanımlamaları
 interface Product {
@@ -250,13 +251,8 @@ interface Category {
     description?: string;
 }
 
-// AuthStore için tip tanımlaması
-interface AuthStore {
-    isAdmin: boolean;
-    getAuthorizedDepot: () => string;
-}
-
-const authStore = useAuthStore() as unknown as AuthStore;
+// AuthStore için özel tip tanımlaması yapmak yerine doğrudan store'u kullanıyoruz
+const authStore = useAuthStore();
 const inventoryStore = useInventoryStore();
 const projectStore = useProjectStore();
 
@@ -298,6 +294,7 @@ const warehouses = ref<Warehouse[]>([]);
 const categories = ref<Category[]>([]); // Tip tanımlaması eklendi
 const itemsPerPage = ref(10);
 const currentPage = ref(1);
+const activeProjectId = ref<string | null>(null); // Aktif proje ID'si için ref
 
 const filters = ref<Filters>({
     startDate: '',
@@ -309,7 +306,28 @@ const filters = ref<Filters>({
     projectId: ''
 });
 
+// Proje değişiklik olayını dinle
 onMounted(() => {
+    // Mevcut aktif projeyi al
+    activeProjectId.value = projectStore.activeProjectId;
+    
+    // Proje değiştiğinde tetiklenecek fonksiyon
+    const handleProjectChanged = (projectId: string | null) => {
+        console.log('Rapor sayfası: Proje değişikliği algılandı:', projectId);
+        activeProjectId.value = projectId;
+        // Veri yükleme işlemini tekrar başlat
+        loadReportData();
+    };
+
+    // Event bus'a subscribe ol
+    eventBus.on('project-changed', handleProjectChanged);
+
+    // Temizleme işlemi
+    onBeforeUnmount(() => {
+        eventBus.off('project-changed', handleProjectChanged);
+    });
+    
+    // İlk verileri yükle
     loadInitialData();
 });
 
@@ -580,18 +598,19 @@ const loadStockData = () => {
                     quantity: stock.quantity || 0
                 });
             }
-        }
-          console.log(`${processedStocks.length} geçerli stok kaydı işlendi`);
+        }        console.log(`${processedStocks.length} geçerli stok kaydı işlendi`);
         
         // Yetki ve filtre kontrolü
         let filteredData = [...processedStocks];
         
         // Yetki kontrolü
         if (!authStore.isAdmin) {
-            const yetkiliDepoCodu = authStore.getAuthorizedDepot as string; // düzeltildi: fonksiyon değil, getter property
-            const yetkiliDepo = warehouses.value.find(w => w.code === yetkiliDepoCodu);
-            if (yetkiliDepo) {
-                filteredData = filteredData.filter(item => item.warehouse?.id === yetkiliDepo.id);
+            const yetkiliDepoCodu = authStore.getAuthorizedDepot;
+            if (yetkiliDepoCodu) { // null kontrolü eklenmiştir
+                const yetkiliDepo = warehouses.value.find(w => w.code === yetkiliDepoCodu);
+                if (yetkiliDepo) {
+                    filteredData = filteredData.filter(item => item.warehouse?.id === yetkiliDepo.id);
+                }
             }
         }
         
@@ -606,7 +625,7 @@ const loadStockData = () => {
         
         // Filtre: Proje
         if (filters.value.projectId) {
-            // Stok kayıtlarında proje ID'si varsa ona göre filtrele
+            // Proje ID'sine göre filtreleme
             filteredData = filteredData.filter(stock => {
                 // Doğrudan projectId eşleşmesi
                 if ('projectId' in stock && stock.projectId === filters.value.projectId) {
@@ -615,6 +634,16 @@ const loadStockData = () => {
                 
                 // Depo bazlı proje filtreleme (proje-depo ilişkisini kullanarak)
                 return inventoryStore.getStocksByProject(filters.value.projectId)
+                    .some(projStock => projStock.id === stock.id);
+            });
+        } else if (activeProjectId.value !== null) {
+            // Aktif projeye göre filtreleme (header'dan seçilen)
+            filteredData = filteredData.filter(stock => {
+                if ('projectId' in stock && stock.projectId === activeProjectId.value) {
+                    return true;
+                }
+                
+                return inventoryStore.getStocksByProject(activeProjectId.value as string)
                     .some(projStock => projStock.id === stock.id);
             });
         }
@@ -712,16 +741,16 @@ const loadMovementData = () => {
         
         console.log(`${movements.length} hareket kaydı işlendi`);
         
-        let filteredData = [...movements];
-          // Yetki kontolü
-        const yetkiliDepoCodu = !authStore.isAdmin ? (authStore.getAuthorizedDepot as string) : null;
-        const yetkiliDepo = yetkiliDepoCodu ? warehouses.value.find(w => w.code === yetkiliDepoCodu) : null;
-        
-        if (yetkiliDepo) {
-            filteredData = filteredData.filter(item => 
-                item.sourceWarehouse?.id === yetkiliDepo.id || 
-                item.targetWarehouse?.id === yetkiliDepo.id
-            );
+        let filteredData = [...movements];        // Yetki kontolü
+        const yetkiliDepoCodu = !authStore.isAdmin ? (authStore.getAuthorizedDepot as unknown as string) : null;
+        // Sadece yetkiliDepoCodu bir string ise depot filtrelemesi yap
+        if (yetkiliDepoCodu) {            const yetkiliDepo = warehouses.value.find(w => w.code === String(yetkiliDepoCodu));
+            if (yetkiliDepo) {
+                filteredData = filteredData.filter(item => 
+                    item.sourceWarehouse?.id === yetkiliDepo.id || 
+                    item.targetWarehouse?.id === yetkiliDepo.id
+                );
+            }
         }
         
         // Tarih filtresi
@@ -766,6 +795,19 @@ const loadMovementData = () => {
                 
                 // Depo bazlı proje filtreleme
                 const projMovements = inventoryStore.getMovementsByProject(filters.value.projectId);
+                return projMovements.some(pm => pm.id === movement.id);
+            });
+        } else if (activeProjectId.value !== null) {
+            // Header'dan seçilen projeye göre filtreleme
+            filteredData = filteredData.filter(movement => {
+                if ('sourceProjectId' in movement && movement.sourceProjectId === activeProjectId.value) {
+                    return true;
+                }
+                if ('targetProjectId' in movement && movement.targetProjectId === activeProjectId.value) {
+                    return true;
+                }
+                
+                const projMovements = inventoryStore.getMovementsByProject(activeProjectId.value as string);
                 return projMovements.some(pm => pm.id === movement.id);
             });
         }
@@ -835,18 +877,19 @@ const loadLowStockData = () => {
         const lowStocks = processedStocks.filter(item => 
             item.quantity <= (item.product?.minStockLevel || 0)
         );
-        
-        console.log(`${lowStocks.length} kritik stok seviyesinde ürün bulundu`);
+          console.log(`${lowStocks.length} kritik stok seviyesinde ürün bulundu`);
         
         // Filtreleme işlemleri
         let filteredData = [...lowStocks];
         
         // Yetki kontrolü
         if (!authStore.isAdmin) {
-            const yetkiliDepoCodu = authStore.getAuthorizedDepot as string; // düzeltildi: fonksiyon değil, getter property
-            const yetkiliDepo = warehouses.value.find(w => w.code === yetkiliDepoCodu);
-            if (yetkiliDepo) {
-                filteredData = filteredData.filter(item => item.warehouse?.id === yetkiliDepo.id);
+            const yetkiliDepoCodu = authStore.getAuthorizedDepot;
+            if (yetkiliDepoCodu) { // null kontrolü eklenmiştir
+                const yetkiliDepo = warehouses.value.find(w => w.code === yetkiliDepoCodu);
+                if (yetkiliDepo) {
+                    filteredData = filteredData.filter(item => item.warehouse?.id === yetkiliDepo.id);
+                }
             }
         }
         
@@ -874,8 +917,10 @@ const availableWarehouses = computed(() => {
     if (authStore.isAdmin) {
         return warehouses.value;
     }
-    const yetkiliDepoCodu = authStore.getAuthorizedDepot as string; // düzeltildi: fonksiyon değil, getter property
-    return warehouses.value.filter(w => w.code === yetkiliDepoCodu);
+    const yetkiliDepoCodu = authStore.getAuthorizedDepot as unknown as string;    // Sadece string bir değer varsa filtrele, yoksa boş dizi döndür
+    return yetkiliDepoCodu 
+        ? warehouses.value.filter(w => w.code === String(yetkiliDepoCodu))
+        : [];
 });
 
 // Proje seçim listesi için computed property

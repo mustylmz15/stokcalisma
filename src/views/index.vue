@@ -151,6 +151,7 @@
                 <div class="flex items-center mb-5">
                   <h5 class="font-semibold text-lg dark:text-white-light">Depo Doluluk Oranı</h5>
                 </div>
+                <p class="text-sm mb-4 text-gray-500">Her bir deponun toplam stok sayısına göre oransal dağılımı</p>
                 <apexchart
                   height="380"
                   type="donut"
@@ -1256,26 +1257,44 @@
 
     // Depo bazlı stok dağılımı
     const warehouseLabels = computed(() => {
-        // Admin kullanıcıları tüm depoları görebilir
-        // Depo sorumluları sadece yetkili oldukları depoyu görebilir
-        const warehouses = isAdminUser.value || !authorizedDepot.value 
-            ? inventoryStore.getWarehouses 
-            : inventoryStore.getWarehouses.filter(w => w.id === authorizedDepot.value);
-        return warehouses.map(w => w.name);
+        try {
+            // Admin kullanıcıları tüm depoları görebilir
+            // Depo sorumluları sadece yetkili oldukları depoyu görebilir
+            const warehouses = isAdminUser.value || !authorizedDepot.value 
+                ? inventoryStore.getWarehouses 
+                : inventoryStore.getWarehouses.filter(w => w.code === authorizedDepot.value);
+            
+            // Depo isimlerini döndür
+            return warehouses.map(w => w.name + ' Deposu');
+        } catch (error) {
+            console.error('Depo etiketleri oluşturulurken hata:', error);
+            return ['Depo Bulunamadı'];
+        }
     });
 
     const warehouseChartSeries = computed(() => {
-        // Önce hangi depoların gösterilmesi gerektiğini belirle
-        const warehouses = isAdminUser.value || !authorizedDepot.value 
-            ? inventoryStore.getWarehouses 
-            : inventoryStore.getWarehouses.filter(w => w.id === authorizedDepot.value);
-        
-        // Belirlenen depolar için stok miktarlarını hesapla
-        return warehouses.map(w =>
-            inventoryStore.stocks
-                .filter(s => s.warehouseId === w.id)
-                .reduce((sum, s) => sum + s.quantity, 0)
-        );
+        try {
+            // Önce hangi depoların gösterilmesi gerektiğini belirle
+            const warehouses = isAdminUser.value || !authorizedDepot.value 
+                ? inventoryStore.getWarehouses 
+                : inventoryStore.getWarehouses.filter(w => w.code === authorizedDepot.value);
+            
+            if (!warehouses || warehouses.length === 0) {
+                return [0]; // Eğer depo yoksa, boş bir dizi döndür
+            }
+            
+            // Belirlenen depolar için stok miktarlarını hesapla
+            return warehouses.map(w => {
+                const totalStock = inventoryStore.stocks
+                    .filter(s => s.warehouseId === w.id)
+                    .reduce((sum, s) => sum + s.quantity, 0);
+                
+                return totalStock || 0; // Eğer stok yoksa 0 döndür
+            });
+        } catch (error) {
+            console.error('Depo doluluk grafiği hazırlanırken hata:', error);
+            return [0]; // Hata durumunda boş dizi döndür
+        }
     });
 
     const warehouseChartOptions = computed(() => ({
@@ -1285,9 +1304,43 @@
           const totalAll = totals.reduce((a: number, b: number) => a + b, 0);
           return ((val / totalAll) * 100).toFixed(0) + '%';
       } },
+      tooltip: {
+        y: {
+          formatter: (val: number) => {
+            return val + ' ürün';
+          }
+        }
+      },
       labels: warehouseLabels.value,
       legend: { position: 'bottom' },
-      plotOptions: { pie: { donut: { size: '65%' } } }
+      plotOptions: { 
+        pie: { 
+          donut: { 
+            size: '65%',
+            labels: {
+              show: true,
+              name: {
+                show: true,
+                fontSize: '14px',
+                fontWeight: 600,
+              },
+              value: {
+                show: true,
+                fontSize: '16px',
+                fontWeight: 600,
+                formatter: (val: number) => val.toString()
+              },
+              total: {
+                show: true,
+                label: 'Toplam Stok',
+                formatter: (w: any) => {
+                  return w.globals.seriesTotals.reduce((a: number, b: number) => a + b, 0).toString() + ' ürün';
+                }
+              }
+            }
+          } 
+        } 
+      }
     }));
 
     // Summary bölümü için istatistikler

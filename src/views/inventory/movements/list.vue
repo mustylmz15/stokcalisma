@@ -322,13 +322,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue';
 import IconPlus from '@/components/icon/icon-plus.vue';
 import IconX from '@/components/icon/icon-x.vue';
 import IconEye from '@/components/icon/icon-eye.vue';
 import { useAuthStore } from '@/stores/auth-store';
 import { useInventoryStore } from '@/stores/inventory.js';
 import { useProjectStore } from '@/stores/projects';
+import { eventBus } from '@/composables/eventBus';
 
 // Interface isimlerini Türkçeleştirme
 type MovementType = 'in' | 'out' | 'transfer' | 'stock_add';
@@ -432,6 +433,7 @@ const formHatalari = ref<FormHatalari>({});
 
 const itemsPerPage = ref(10);
 const currentPage = ref(1);
+const activeProjectId = ref<string | null>(null);
 
 const authStore = useAuthStore();
 const inventoryStore = useInventoryStore();
@@ -440,6 +442,25 @@ const projectStore = useProjectStore();
 onMounted(async () => {
     hata.value = '';
     yukleniyor.value = true;
+    
+    // Mevcut aktif projeyi al
+    activeProjectId.value = projectStore.activeProjectId;
+    
+    // Proje değiştiğinde tetiklenecek fonksiyon
+    const handleProjectChanged = (projectId: string | null) => {
+        console.log('Stok Hareketleri sayfası: Proje değişikliği algılandı:', projectId);
+        activeProjectId.value = projectId;
+        // Verileri yeniden yükle
+        loadMovements();
+    };
+
+    // Event bus'a subscribe ol
+    eventBus.on('project-changed', handleProjectChanged);
+
+    // Temizleme işlemi
+    onBeforeUnmount(() => {
+        eventBus.off('project-changed', handleProjectChanged);
+    });
     
     try {
         // Veri deposunu başlatma - bu işlem tamamlanana kadar bekle
@@ -475,21 +496,9 @@ const loadMovements = async () => {
     hata.value = '';
     try {
         const movements = inventoryStore.getMovements;
-        
-        // Eğer depolar ve ürünler henüz yüklenmemişse, önceden yükleyelim
-        if (depolar.value.length === 0) {
-            await loadWarehouses();
-        }
-        
-        if (urunler.value.length === 0) {
-            await loadProducts();
-        }
-        
-        console.log('Hareketler yükleniyor. Toplam:', movements.length);
-        
-        // Şimdi her hareket için doğru ürün ve depo bilgilerini ekleyelim
+        if (depolar.value.length === 0) await loadWarehouses();
+        if (urunler.value.length === 0) await loadProducts();
         hareketler.value = movements.map(m => {
-            // İlgili ürünü bul
             const ilgiliUrun = urunler.value.find(u => u.id === m.productId) || {
                 id: m.productId || '',
                 code: '',
@@ -497,8 +506,6 @@ const loadMovements = async () => {
                 unit: 'adet',
                 minStockLevel: 0
             };
-            
-            // İlgili kaynak depoyu bul
             const kaynakDepo = depolar.value.find(d => d.id === m.sourceWarehouseId) || {
                 id: m.sourceWarehouseId || '',
                 code: '',
@@ -506,58 +513,28 @@ const loadMovements = async () => {
                 address: '',
                 manager: '',
                 isActive: true
-            };            // İlgili hedef depoyu bul (transfer veya stock_add hareketi ise)
-            let hedefDepo;
+            };
+            let hedefDepo = undefined;
             if ((m.type === 'transfer' || m.type === 'stock_add') && m.targetWarehouseId) {
-                hedefDepo = depolar.value.find(d => d.id === m.targetWarehouseId);
-                if (!hedefDepo) {
-                    hedefDepo = {
-                        id: m.targetWarehouseId || '',
-                        code: '',
-                        name: 'Tanımsız Depo',
-                        address: null,
-                        manager: null,
-                        isActive: true
-                    };
-                }
+                hedefDepo = depolar.value.find(d => d.id === m.targetWarehouseId) || {
+                    id: m.targetWarehouseId || '',
+                    code: '',
+                    name: 'Tanımsız Depo',
+                    address: null as string | null,
+                    manager: null as string | null,
+                    isActive: true
+                };
             }
-              // Hareket nesnesini oluştur
-            const hareket: StokHareketi = {
-                id: m.id || '',
-                movementNumber: m.movementNumber || `HRK-${Math.random().toString(36).substr(2, 9)}`,
-                date: new Date(m.date || new Date()),
-                type: (m.type === 'out' || m.type === 'transfer' ? m.type : 'in') as MovementType,
-                productId: m.productId || '',
-                quantity: m.quantity || 0,
-                sourceWarehouseId: m.sourceWarehouseId || '',
-                targetWarehouseId: m.targetWarehouseId,
-                sourceProjectId: m.sourceProjectId || 'ApMkLHJ3Rk7BpmYuNm5Z',
-                targetProjectId: m.targetProjectId,
-                description: m.description || '',
+            return {
+                ...m,
+                date: m.date ? new Date(m.date) : new Date(),
                 product: ilgiliUrun,
                 sourceWarehouse: kaynakDepo,
-                targetWarehouse: hedefDepo
+                targetWarehouse: hedefDepo,
+                description: m.description || ''
             };
-            
-            return hareket;
         });
-        
-        // Toplam kayıt sayısını güncelle
         toplamKayit.value = hareketler.value.length;
-        
-        // Debug bilgisi
-        console.log(`${hareketler.value.length} hareket yüklendi`);
-        if (hareketler.value.length > 0) {
-            // İlk hareketin bilgilerini kontrol et
-            const ilkHareket = hareketler.value[0];
-            console.log('İlk hareket:', {
-                movementNumber: ilkHareket.movementNumber,
-                product: ilkHareket.product?.name,
-                sourceWarehouse: ilkHareket.sourceWarehouse?.name,
-                targetWarehouse: ilkHareket.targetWarehouse?.name
-            });
-        }
-        
     } catch (err) {
         console.error('Hareketler yüklenirken hata oluştu:', err);
         hata.value = 'Hareketler yüklenirken bir hata oluştu. Lütfen sayfayı yenileyip tekrar deneyin.';
@@ -670,6 +647,8 @@ const getMovementTypeLabel = (type: string | undefined) => {
             return 'Çıkış';
         case 'transfer':
             return 'Transfer';
+        case 'stock_add':
+            return 'Stok Ekleme';
         default:
             return type;
     }
@@ -722,6 +701,16 @@ const filteredMovements = computed(() => {
             const dateB = new Date(b.date).getTime();
             return dateB - dateA; // Azalan sıralama (en yeni önce)
         });
+        
+        // Aktif proje filtrelemesi
+        if (activeProjectId.value !== null) {
+            console.log('Computed - Aktif proje ID:', activeProjectId.value);
+            result = result.filter(hareket => 
+                (hareket.sourceProjectId === activeProjectId.value) || 
+                (hareket.targetProjectId === activeProjectId.value)
+            );
+            console.log('Computed - filtreleme sonrası:', result.length);
+        }
         
         // Admin değilse sadece kendi deposuna ait hareketleri göster
         if (!authStore.isAdmin) {

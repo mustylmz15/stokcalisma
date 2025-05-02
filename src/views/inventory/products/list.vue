@@ -168,9 +168,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useInventoryStore } from '@/stores/inventory';
 import { useAuthStore } from '@/stores/auth-store';
+import { useProjectStore } from '@/stores/projects';
+import { eventBus } from '@/composables/eventBus';
 import IconPlus from '@/components/icon/icon-plus.vue';
 import IconPencil from '@/components/icon/icon-pencil.vue';
 import IconTrashLines from '@/components/icon/icon-trash-lines.vue';
@@ -221,6 +223,7 @@ interface Notification {
 // Store'lar
 const authStore = useAuthStore();
 const inventoryStore = useInventoryStore();
+const projectStore = useProjectStore();
 
 // Durum yönetimi
 const loading = ref<boolean>(false);
@@ -229,6 +232,7 @@ const currentPage = ref<number>(1);
 const itemsPerPage = ref<number>(10);
 const showDeleteModal = ref<boolean>(false);
 const productToDelete = ref<Product | null>(null);
+const activeProjectId = ref<string | null>(null);
 const notification = ref<Notification>({
     show: false,
     message: '',
@@ -246,6 +250,18 @@ const categories = computed<Category[]>(() => inventoryStore.getCategories);
 // Hesaplanmış özellikler
 const filteredProducts = computed<Product[]>(() => {
     let result = [...products.value];
+    
+    // Aktif proje filtresi
+    if (activeProjectId.value !== null) {
+        // Burada activeProjectId'ye göre filtreleme yapabiliriz
+        // Ürünleri proje ID'sine göre filtrele
+        console.log(`Ürünler ${activeProjectId.value} projesine göre filtreleniyor`);
+        
+        const projectedProducts = inventoryStore.getStocksByProject(activeProjectId.value as string);
+        const productIdsInProject = projectedProducts.map(stock => stock.productId);
+        
+        result = result.filter(product => productIdsInProject.includes(product.id));
+    }
     
     // Admin değilse sadece kendi deposundaki ürünleri göster
     if (!authStore.isAdmin) {
@@ -294,6 +310,31 @@ const paginatedProducts = computed<Product[]>(() => {
 });
 
 // Metodlar
+const loadProducts = async () => {
+    loading.value = true;
+    try {
+        // InventoryStore'dan ürünlerin yüklenmesini sağla
+        if (!inventoryStore.isInitialized) {
+            await inventoryStore.initializeStore();
+        } else {
+            await inventoryStore.refreshData();
+        }
+        
+        // Aktif proje ID'si varsa, ürünleri filtrele
+        if (activeProjectId.value) {
+            console.log('Ürünler aktif projeye göre filtreleniyor:', activeProjectId.value);
+            // Filtreleme computed özelliğinde gerçekleşir
+        }
+    } catch (error) {
+        console.error('Ürünler yüklenirken hata:', error);
+        showNotification('Ürünler yüklenirken bir hata oluştu', 'error');
+    } finally {
+        setTimeout(() => {
+            loading.value = false;
+        }, 300);
+    }
+};
+
 const showNotification = (message: string, type: Notification['type'] = 'info'): void => {
     notification.value = {
         show: true,
@@ -343,10 +384,28 @@ const getStockStatus = (product: Product): string => {
 };
 
 // Sayfa yüklendiğinde
-onMounted((): void => {
-    loading.value = true;
-    setTimeout(() => {
-        loading.value = false;
-    }, 300);
+onMounted(async () => {
+    // Mevcut aktif projeyi al
+    activeProjectId.value = projectStore.activeProjectId;
+    
+    // Proje değiştiğinde tetiklenecek fonksiyon
+    const handleProjectChanged = (projectId: string | null) => {
+        console.log('Ürünler sayfası: Proje değişikliği algılandı:', projectId);
+        activeProjectId.value = projectId;
+        
+        // Ürün listesini yeniden yükle
+        loadProducts();
+    };
+
+    // Event bus'a subscribe ol
+    eventBus.on('project-changed', handleProjectChanged);
+
+    // Temizleme işlemi
+    onBeforeUnmount(() => {
+        eventBus.off('project-changed', handleProjectChanged);
+    });
+    
+    // İlk yüklemede ürünleri getir
+    await loadProducts();
 });
 </script>

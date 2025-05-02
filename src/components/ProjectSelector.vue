@@ -11,8 +11,7 @@
             </button>
 
             <div v-show="isDropdownOpen" class="absolute z-50 mt-2 w-[250px] bg-white dark:bg-[#1b2e4b] shadow-md rounded-lg right-0">
-                <div class="!py-0 text-dark dark:text-white-dark">
-                    <div class="p-4 font-semibold border-b border-white-light dark:border-[#1b2e4b]">
+                <div class="!py-0 text-dark dark:text-white-dark">                    <div class="p-4 font-semibold border-b border-white-light dark:border-[#1b2e4b]">
                         Projelerim
                     </div>
                 <div v-if="isProjectsLoading" class="p-4 text-center">
@@ -23,6 +22,19 @@
                         Henüz bir projeniz bulunmuyor.
                     </div>
                     <ul v-else class="max-h-64 overflow-y-auto">
+                        <li>
+                            <a href="javascript:;"
+                                class="flex items-center px-4 py-3 hover:bg-white-light dark:hover:bg-[#1b2e4b]"
+                                :class="{ 'bg-primary-light dark:bg-primary/20': activeProject === null }"
+                                @click="selectAllProjects()">
+                                <div class="flex-1">
+                                    <div class="flex items-center">
+                                        <h4 class="text-sm font-semibold" :class="{ 'text-primary': activeProject === null }">Tüm Projeler</h4>
+                                        <span v-if="activeProject === null" class="bg-primary text-white text-xs rounded px-1 ml-2">Aktif</span>
+                                    </div>
+                                </div>
+                            </a>
+                        </li>
                         <li v-for="project in projects" :key="project.id">
                             <a href="javascript:;"
                                 class="flex items-center px-4 py-3 hover:bg-white-light dark:hover:bg-[#1b2e4b]"
@@ -146,6 +158,36 @@ onMounted(async () => {
 onBeforeUnmount(() => {
     document.removeEventListener('click', handleClickOutside);
 });
+
+// Tüm projeleri seçme fonksiyonu
+const selectAllProjects = async () => {
+    try {
+        // Projeyi değiştirirken loading yap
+        isProjectsLoading.value = true;
+        
+        // Aktif projeyi null olarak ayarla - clearActiveProject yerine doğrudan store'daki değeri değiştir
+        projectStore.activeProject = null;
+        localStorage.removeItem('activeProjectId');
+        
+        // Envanter bilgilerini tüm projeleri gösterecek şekilde ayarla
+        // Burada inventory.js uzantısını düzgün şekilde import ettiğimizden emin olun
+        const inventoryStore = useInventoryStore();
+        await inventoryStore.setActiveProjectId(null);
+        
+        // Proje değişti eventi yayınla
+        eventBus.emit('project-changed', null);
+        
+        // İşlem tamamlandığında loading kapatılıyor
+        isProjectsLoading.value = false;
+        isDropdownOpen.value = false;
+    } catch (error) {
+        isProjectsLoading.value = false;
+        console.error('Tüm projeler modu ayarlanırken hata:', error);
+    } finally {
+        // Her durumda loading kapatılıyor
+        isProjectsLoading.value = false;
+    }
+};
 
 // Proje seçme fonksiyonu
 const selectProject = async (project) => {

@@ -157,6 +157,12 @@ export const useProjectStore = defineStore('projects', () => {
         }
     }
     
+    // Aktif projeyi temizle - "Tüm Projeler" modu için
+    function clearActiveProject() {
+        activeProject.value = null;
+        localStorage.removeItem('activeProjectId');
+    }
+    
     async function addProject(projectData: { name: string } & Partial<Project>) {
         if (!authStore.isAdmin) {
             error.value = 'Bu işlem için yetkiniz yok';
@@ -426,8 +432,7 @@ export const useProjectStore = defineStore('projects', () => {
     if (authStore.isLoggedIn) {
         initFromLocalStorage();
     }
-    
-    return {
+      return {
         // State
         projects,
         activeProject,
@@ -443,6 +448,7 @@ export const useProjectStore = defineStore('projects', () => {
         initializeStore,
         loadUserProjects,
         setActiveProject,
+        clearActiveProject,
         addProject,
         updateProject,
         deleteProject,
