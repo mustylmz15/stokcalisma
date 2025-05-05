@@ -58,7 +58,7 @@
     });
     
     // Uygulama başlatıldığında oturum kontrolü yap
-    onMounted(() => {
+    onMounted(async () => {
         console.log('App.vue: Uygulama başlatıldı, oturum kontrolü yapılıyor');
         
         // Firebase Auth listener'ı başlat
@@ -66,6 +66,20 @@
         
         // Bu, tarayıcı "beforeunload" olayını dinler ve açık kalmış dinleyicileri temizler
         window.addEventListener('beforeunload', cleanupListeners);
+        
+        // Project Store'u başlatıldığında tüm projeleri seçili olarak ayarla
+        if (authStore.isLoggedIn) {
+            try {
+                // Project store'u temiz başlasın diye dinamik import kullanıyoruz
+                const { useProjectStore } = await import('./stores/projects');
+                const projectStore = useProjectStore();
+                
+                // Aktif projeyi temizle - tüm projeleri göster
+                projectStore.activeProject = null;
+            } catch (error) {
+                console.error('Project store başlatma hatası:', error);
+            }
+        }
     });
     
     // Uygulama kapandığında veya component unmount olduğunda temizlik yap

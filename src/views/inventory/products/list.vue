@@ -20,10 +20,17 @@
                                 class="form-input" 
                                 v-model="searchTerm" 
                                 placeholder="Ürün ara..."
-                            />
-                        </div>
-                    </div>
+                            />                        </div>                    </div>
                     <div class="flex gap-2">
+                        <router-link to="/inventory/products/manage" class="btn btn-info">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 ltr:mr-2 rtl:ml-2">
+                                <path d="M12 20h9" />
+                                <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                                <path d="m15 5 3 3" />
+                            </svg>
+                            <span v-if="authStore.isAdmin">Ürün Yönetimi</span>
+                            <span v-else>Depoya Ürün Ekle</span>
+                        </router-link>
                         <router-link v-if="authStore.canEditItems" to="/inventory/products/add" class="btn btn-primary">
                             <icon-plus class="w-5 h-5 ltr:mr-2 rtl:ml-2" />
                             Yeni Ürün

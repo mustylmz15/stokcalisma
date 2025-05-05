@@ -42,6 +42,9 @@ export interface Product {
     totalStock?: number;
     unitPrice: number;
     isActive: boolean;
+    hasSerialization?: boolean; // Seri numaralı takip edilecek mi?
+    requireSerialNumber?: boolean; // Seri numarası zorunlu mu?
+    serialNumberPrefix?: string; // Seri numarası ön eki
 }
 
 interface Stock {
@@ -64,6 +67,8 @@ export interface Movement {
     sourceProjectId?: string;  // Kaynak proje ID'si
     targetProjectId?: string;  // Hedef proje ID'si (transferlerde kullanılır)
     description?: string;
+    serialNumbers?: string[];  // İşlem yapılan seri numaraları
+    isSerialized?: boolean;    // Seri numaralı işlem mi?
 }
 
 export interface MovementWithDetails extends Movement {
@@ -103,6 +108,7 @@ export const useInventoryStore = defineStore('inventory', {
         products: [] as Product[],
         stocks: [] as Stock[],
         movements: [] as Movement[],
+        serializedItems: [] as any[], // Seri numaralı ürünler
         isInitialized: false,
         activeProjectId: null as string | null,
         projectWarehouses: [] as Warehouse[],
@@ -171,6 +177,24 @@ export const useInventoryStore = defineStore('inventory', {
                 (movement.sourceWarehouseId === warehouseId && movement.sourceProjectId === projectId) ||
                 (movement.targetWarehouseId === warehouseId && movement.targetProjectId === projectId)
             );
+        },
+        // Seri numaralı ürün getters
+        getSerializedItems: (state) => state.serializedItems,
+        // Seri numarasına göre ürün getir
+        getSerializedItemBySerialNumber: (state) => (serialNumber: string) => {
+            return state.serializedItems.find(item => item.serialNumber === serialNumber);
+        },
+        // Ürün ID'sine göre seri numaralı ürünleri getir
+        getSerializedItemsByProduct: (state) => (productId: string) => {
+            return state.serializedItems.filter(item => item.productId === productId);
+        },
+        // Depo ID'sine göre seri numaralı ürünleri getir
+        getSerializedItemsByWarehouse: (state) => (warehouseId: string) => {
+            return state.serializedItems.filter(item => item.warehouseId === warehouseId);
+        },
+        // Durum değerine göre seri numaralı ürünleri getir
+        getSerializedItemsByStatus: (state) => (status: string) => {
+            return state.serializedItems.filter(item => item.status === status);
         },
         getLowStockProducts: (state) => {
             return state.stocks.filter(stock => {
@@ -278,10 +302,18 @@ export const useInventoryStore = defineStore('inventory', {
         },
     },
 
-    actions: {
-        async initializeStore() {
+    actions: {        async initializeStore() {
             try {
                 if (this.isInitialized) return;
+                
+                // Dinamik olarak serializedInventoryService'i import edelim
+                let serializedInventoryService;
+                try {
+                    serializedInventoryService = (await import('@/services/serializedInventoryService')).default;
+                } catch (importError) {
+                    console.warn('serializedInventoryService yüklenirken hata:', importError);
+                    serializedInventoryService = null;
+                }
                 
                 const [categoriesData, warehousesData, productsData, stocksData, movementsData] = await Promise.all([
                     inventoryService.getAllCategories(),
@@ -296,6 +328,18 @@ export const useInventoryStore = defineStore('inventory', {
                 this.products = productsData;
                 this.stocks = stocksData;
                 this.movements = movementsData;
+                
+                // Seri numaralı ürünleri de yükleyelim
+                if (serializedInventoryService) {
+                    try {
+                        const serializedItemsData = await serializedInventoryService.getAllSerializedItems();
+                        this.serializedItems = serializedItemsData;
+                        console.log('Seri numaralı ürünler yüklendi:', serializedItemsData.length);
+                    } catch (error) {
+                        console.error('Seri numaralı ürünleri yükleme hatası:', error);
+                        this.serializedItems = [];
+                    }
+                }
                 
                 this.isInitialized = true;
                 
@@ -392,12 +436,16 @@ export const useInventoryStore = defineStore('inventory', {
                 console.error('Error refreshing inventory data:', error);
                 throw error;
             }
-        },
-
-        // Aktif proje ID'sini ayarla ve ilgili verileri yükle
+        },        // Aktif proje ID'sini ayarla ve ilgili verileri yükle
         async setActiveProjectId(projectId: string | null) {
             this.activeProjectId = projectId;
+            // Proje bilgisini oturum bazlı tut - localStorage'a kaydetme
             await this.loadProjectData();
+        },
+        
+        // Aktif projeyi sıfırla
+        resetActiveProject() {
+            this.activeProjectId = null;
         },
 
         async addCategory(categoryData: Omit<Category, 'id'>) {
@@ -609,9 +657,7 @@ export const useInventoryStore = defineStore('inventory', {
                 }
                 throw new Error('Hareket eklenirken bir hata oluştu');
             }
-        },
-
-        async processStockMovement(data: any) {
+        },        async processStockMovement(data: any) {
             this.loading = true;
             this.error = null;
             
@@ -639,6 +685,160 @@ export const useInventoryStore = defineStore('inventory', {
                 return true;
             } catch (error: any) {
                 this.error = error.message || 'Stok işlemi sırasında bir hata oluştu';
+                throw error;
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        // Seri numaralı ürün actions
+        
+        // Seri numaralı ürün ekle
+        async addSerializedItem(itemData: any) {
+            this.loading = true;
+            this.error = null;
+            
+            try {
+                const serializedInventoryService = (await import('@/services/serializedInventoryService')).default;
+                
+                const newItem = await serializedInventoryService.addSerializedItem(itemData);
+                
+                // Bu ürünü state'e ekle
+                this.serializedItems.push(newItem);
+                
+                // İlgili ürünün stock bilgisini güncelle
+                await this.refreshStockData();
+                
+                console.log('Seri numaralı ürün eklendi:', newItem.serialNumber);
+                
+                return newItem;
+            } catch (error: any) {
+                this.error = error.message || 'Seri numaralı ürün eklenirken bir hata oluştu';
+                throw error;
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        // Birden fazla seri numaralı ürün ekle
+        async addMultipleSerializedItems(productId: string, warehouseId: string, serialNumbers: string[], projectId?: string) {
+            this.loading = true;
+            this.error = null;
+            
+            try {
+                const serializedInventoryService = (await import('@/services/serializedInventoryService')).default;
+                
+                const items: any[] = [];
+                
+                for (const serialNumber of serialNumbers) {
+                    try {
+                        const itemData = {
+                            serialNumber,
+                            productId,
+                            warehouseId,
+                            projectId,
+                            status: 'active',
+                            acquisitionDate: new Date().toISOString()
+                        };
+                        
+                        const newItem = await serializedInventoryService.addSerializedItem(itemData);
+                        
+                        // Bu ürünü state'e ekle
+                        this.serializedItems.push(newItem);
+                        
+                        items.push(newItem);
+                    } catch (error) {
+                        console.error(`${serialNumber} eklenirken hata:`, error);
+                        // Hatayı logla ama devam et
+                    }
+                }
+                
+                // İlgili ürünün stock bilgisini güncelle
+                await this.refreshStockData();
+                
+                console.log(`${items.length}/${serialNumbers.length} seri numaralı ürün eklendi`);
+                
+                return items;
+            } catch (error: any) {
+                this.error = error.message || 'Seri numaralı ürünler eklenirken bir hata oluştu';
+                throw error;
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        // Seri numaralı ürün durumunu güncelle
+        async updateSerializedItemStatus(serialNumber: string, status: string, notes?: string) {
+            this.loading = true;
+            this.error = null;
+            
+            try {
+                const serializedInventoryService = (await import('@/services/serializedInventoryService')).default;
+                
+                const updatedItem = await serializedInventoryService.updateSerializedItemStatus(serialNumber, status, notes);
+                
+                // State'deki ilgili ürünü güncelle
+                const index = this.serializedItems.findIndex(item => item.serialNumber === serialNumber);
+                if (index !== -1) {
+                    this.serializedItems[index] = updatedItem;
+                }
+                
+                return updatedItem;
+            } catch (error: any) {
+                this.error = error.message || 'Ürün durumu güncellenirken bir hata oluştu';
+                throw error;
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        // Seri numaralı ürünü transfer et
+        async transferSerializedItem(serialNumber: string, targetWarehouseId: string, notes?: string) {
+            this.loading = true;
+            this.error = null;
+            
+            try {
+                const serializedInventoryService = (await import('@/services/serializedInventoryService')).default;
+                
+                const transferredItem = await serializedInventoryService.transferSerializedItem(
+                    serialNumber, 
+                    targetWarehouseId, 
+                    notes
+                );
+                
+                // State'deki ilgili ürünü güncelle
+                const index = this.serializedItems.findIndex(item => item.serialNumber === serialNumber);
+                if (index !== -1) {
+                    this.serializedItems[index] = transferredItem;
+                }
+                
+                // Stok bilgisini güncelle
+                await this.refreshStockData();
+                
+                return transferredItem;
+            } catch (error: any) {
+                this.error = error.message || 'Ürün transfer edilirken bir hata oluştu';
+                throw error;
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        // Tüm seri numaralı ürünleri getir
+        async fetchSerializedItems() {
+            this.loading = true;
+            this.error = null;
+            
+            try {
+                const serializedInventoryService = (await import('@/services/serializedInventoryService')).default;
+                
+                const items = await serializedInventoryService.getAllSerializedItems();
+                
+                this.serializedItems = items;
+                
+                return items;
+            } catch (error: any) {
+                this.error = error.message || 'Seri numaralı ürünler getirilirken bir hata oluştu';
                 throw error;
             } finally {
                 this.loading = false;

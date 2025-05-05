@@ -22,7 +22,7 @@
                                 <div class="flex items-center">
                                     <icon-menu-dashboard class="group-hover:!text-primary shrink-0" />
                                     <span class="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">
-                                        Dashboard
+                                        Anasayfa
                                     </span>
                                 </div>
                             </router-link>
@@ -95,8 +95,14 @@
                                     <li>
                                         <router-link to="/inventory" @click="toggleMobileMenu">Anasayfa</router-link>
                                     </li>
-                                    <li>
+                                    <li v-if="authStore.isAdmin">
                                         <router-link to="/inventory/products" @click="toggleMobileMenu">Ürünler</router-link>
+                                    </li>
+                                    <li>
+                                        <router-link to="/inventory/products/manage" @click="toggleMobileMenu">
+                                            <span v-if="authStore.isAdmin">Ürün Yönetimi</span>
+                                            <span v-else>Depoya Ürün Ekle</span>
+                                        </router-link>
                                     </li>
                                     <li v-if="authStore.isAdmin">
                                         <router-link to="/inventory/categories" @click="toggleMobileMenu">Kategoriler</router-link>
@@ -112,6 +118,40 @@
                                     </li>
                                     <li>
                                         <router-link to="/envanter/ariza-yonetimi" @click="toggleMobileMenu">Arıza Yönetimi</router-link>
+                                    </li>
+                                </ul>
+                            </vue-collapsible>
+                        </li>
+                        
+                        <!-- Arıza Yönetimi Menüsü -->
+                        <h2 class="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
+                            <icon-minus class="w-4 h-5 flex-none hidden" />
+                            <span>Arıza Yönetimi</span>
+                        </h2>
+                        <li class="menu nav-item">
+                            <button
+                                type="button"
+                                class="nav-link group w-full"
+                                :class="{ active: activeDropdown === 'fault-management' }"
+                                @click="activeDropdown === 'fault-management' ? (activeDropdown = '') : (activeDropdown = 'fault-management')"
+                            >
+                                <div class="flex items-center">
+                                    <icon-menu-widgets class="group-hover:!text-primary shrink-0" />
+                                    <span class="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">
+                                        ARIZA YÖNETİMİ
+                                    </span>
+                                </div>
+                                <div :class="{ 'rtl:rotate-90 -rotate-90': activeDropdown !== 'fault-management' }">
+                                    <icon-caret-down />
+                                </div>
+                            </button>
+                            <vue-collapsible :isOpen="activeDropdown === 'fault-management'">
+                                <ul class="sub-menu text-gray-500">
+                                    <li>
+                                        <router-link to="/ariza-yonetimi" @click="toggleMobileMenu">Arızalı Ürünler</router-link>
+                                    </li>
+                                    <li v-if="authStore.isAdmin">
+                                        <router-link to="/ariza-yonetimi/kurulum" @click="toggleMobileMenu">Kurulum</router-link>
                                     </li>
                                 </ul>
                             </vue-collapsible>
@@ -165,6 +205,18 @@
                                     <icon-menu-widgets class="group-hover:!text-primary shrink-0" />
                                     <span class="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">
                                         Proje Yönetimi
+                                    </span>
+                                </div>
+                            </router-link>
+                        </li>
+                        
+                        <!-- Veritabanı Yönetimi Menüsü (Sadece admin görebilir) -->
+                        <li v-if="authStore.isAdmin" class="menu nav-item">
+                            <router-link to="/database-management" class="nav-link group" @click="toggleMobileMenu">
+                                <div class="flex items-center">
+                                    <icon-menu-data class="group-hover:!text-primary shrink-0" />
+                                    <span class="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">
+                                        Veritabanı Yönetimi
                                     </span>
                                 </div>
                             </router-link>

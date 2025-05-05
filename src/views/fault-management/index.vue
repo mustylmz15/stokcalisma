@@ -60,16 +60,19 @@
                 </div>
             </div>
 
-            <div class="panel mb-5">
-                <div class="flex items-center justify-between mb-5">
+            <div class="panel mb-5">                <div class="flex items-center justify-between mb-5">
                     <h5 class="font-semibold text-lg dark:text-white-light">Arızalı Ürün Yönetimi</h5>
-                    <button type="button" @click="showAddModal = true" class="btn btn-primary">
+                    <button type="button" @click="openAddModal" class="btn btn-primary">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 ltr:mr-2 rtl:ml-2">
                             <line x1="12" y1="5" x2="12" y2="19"></line>
                             <line x1="5" y1="12" x2="19" y2="12"></line>
                         </svg>
                         Arızalı Ürün Ekle
                     </button>
+                </div>
+
+                <div class="bg-info-light text-info p-3 mb-5 rounded">
+                    <p><strong>Bilgi:</strong> Arızalı ürün eklendiğinde gönderen depodan otomatik olarak stok düşümü yapılır. Ürün "İade Alındı" durumuna getirildiğinde ise stok tekrar ilgili depoya eklenir.</p>
                 </div>
 
                 <div class="mb-5">
@@ -220,14 +223,28 @@
                                 </div>
                                 <div>
                                     <label for="serialNumber">Seri Numarası</label>
-                                    <input id="serialNumber" v-model="formData.serialNumber" type="text" class="form-input" required />
+                                    <div class="flex">
+                                        <input id="serialNumber" v-model="formData.serialNumber" type="text" 
+                                            class="form-input flex-1" 
+                                            :class="{'border-red-500': serialNumberError, 'border-green-500': serialNumberSuccess}"
+                                            @blur="validateSerialNumberInWarehouse"
+                                            required />
+                                        <button v-if="serialNumberValidating" type="button" class="btn btn-outline-info ml-2" disabled>
+                                            <span class="animate-spin mr-2">&#8635;</span>
+                                        </button>
+                                    </div>
+                                    <p v-if="serialNumberError" class="text-red-500 text-xs mt-1">{{ serialNumberError }}</p>
+                                    <p v-if="serialNumberSuccess" class="text-green-500 text-xs mt-1">{{ serialNumberSuccess }}</p>
                                 </div>
                             </div>
                             
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label for="senderWarehouseId">Gönderen Depo</label>
-                                    <select id="senderWarehouseId" v-model="formData.senderWarehouseId" class="form-select" required>
+                                    <select id="senderWarehouseId" v-model="formData.senderWarehouseId" class="form-select" 
+                                        :class="{'border-red-500': serialNumberError}"
+                                        @change="validateSerialNumberInWarehouse" 
+                                        required>
                                         <option value="" disabled>Depo Seçin</option>
                                         <option v-for="warehouse in warehouses" :key="warehouse.id" :value="warehouse.id">
                                             {{ warehouse.name }}
@@ -244,16 +261,17 @@
                                     </select>
                                 </div>
                             </div>
-                            
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
-                                    <label for="projectId">Proje</label>
-                                    <select id="projectId" v-model="formData.projectId" class="form-select" required>
+                                    <label for="projectId">Proje</label>                                    <select id="projectId" v-model="formData.projectId" class="form-select" required>
                                         <option value="" disabled>Proje Seçin</option>
+                                        <option v-if="projectsLoading" value="" disabled>Projeler yükleniyor...</option>
+                                        <option v-if="projects.length === 0 && !projectsLoading" value="" disabled>Proje bulunamadı</option>
                                         <option v-for="project in projects" :key="project.id" :value="project.id">
                                             {{ project.name }}
                                         </option>
                                     </select>
+                                    <small v-if="projectsError" class="text-danger">{{ projectsError }}</small>
                                 </div>
                                 <div>
                                     <label for="priority">Öncelik</label>
@@ -470,6 +488,9 @@ import { useArizaStore } from '@/stores/ariza-store';
 import { useToast } from 'vue-toastification';
 import { useInventoryStore } from '@/stores/inventory';
 import { useProjectStore } from '@/stores/project-store';
+import { collection, getDocs, Timestamp } from 'firebase/firestore';
+import { db } from '@/firebase';
+import serializedInventoryService from '@/services/serializedInventoryService';
 
 const arizaStore = useArizaStore();
 const inventoryStore = useInventoryStore();
@@ -484,6 +505,15 @@ const showAddModal = ref(false);
 const showDetailModal = ref(false);
 const showUpdateStatusModal = ref(false);
 const selectedProduct = ref(null);
+
+// Seri numarası doğrulama durumu
+const serialNumberValidating = ref(false);
+const serialNumberError = ref('');
+const serialNumberSuccess = ref('');
+
+// Proje yükleme durumu
+const projectsLoading = ref(false);
+const projectsError = ref(null);
 
 // Form verileri
 const formData = ref({
@@ -513,9 +543,14 @@ const fetchData = async () => {
     error.value = null;
     
     try {
+        // Arıza verilerini yükle
         await arizaStore.initializeStore();
+        
+        // Envanter verilerini yükle
         await inventoryStore.initializeStore();
-        await projectStore.fetchProjects();
+        
+        // Proje verilerini yükle
+        await fetchProjects();
     } catch (err) {
         console.error('Error fetching data:', err);
         error.value = 'Veri yüklenirken bir hata oluştu';
@@ -525,12 +560,52 @@ const fetchData = async () => {
     }
 };
 
+// Projeleri ayrı bir fonksiyon olarak getir
+const fetchProjects = async () => {
+    projectsLoading.value = true;
+    projectsError.value = null;
+    
+    try {
+        console.log('Projeleri doğrudan Firebase\'den yüklüyorum...');
+        // Projeleri direkt Firebase'den yükle - store kullanmadan
+        const projectsRef = collection(db, 'projects');
+        const projectsSnapshot = await getDocs(projectsRef);
+        
+        // Projeleri direkt listeye dönüştür
+        const fetchedProjects = projectsSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+        
+        console.log('Firebase\'den yüklenen projeler:', fetchedProjects);
+        
+        // Eğer hiç proje yoksa
+        if (fetchedProjects.length === 0) {
+            console.warn('Firebase\'de hiç proje bulunamadı');
+            projectsError.value = 'Hiç proje bulunamadı, lütfen önce kurulum sayfasından projeleri ekleyin';
+            toast.warning('Proje listesi boş, lütfen önce projeleri ekleyin');
+        } else {
+            // Projeleri projeler değişkenine ata
+            projects.value = fetchedProjects;
+            console.log('Projeler başarıyla yüklendi:', projects.value);
+        }
+    } catch (err) {
+        console.error('Projeler yüklenirken hata:', err);
+        projectsError.value = 'Projeler yüklenirken bir hata oluştu';
+        toast.error('Projeler yüklenirken bir hata oluştu');
+    } finally {
+        projectsLoading.value = false;
+    }
+};
+
 // Hesaplanan değerler
 const faultyProducts = computed(() => arizaStore.getFaultyProducts);
 const serviceCenters = computed(() => arizaStore.getServiceCenters);
 const availableProducts = computed(() => inventoryStore.getProducts);
 const warehouses = computed(() => inventoryStore.getWarehouses);
-const projects = computed(() => projectStore.projects);
+
+// Projeler değişkeni - artık computed değil, doğrudan ref (store bağlantısı olmadan)
+const projects = ref([]);
 
 // Duruma göre filtrelenmiş ürünler
 const filteredProducts = computed(() => {
@@ -590,19 +665,98 @@ const getServiceCenterName = (id) => {
 };
 
 const getProjectName = (id) => {
+    if (!id) return 'Belirtilmemiş';
     const project = projects.value.find(p => p.id === id);
     return project ? project.name : id;
 };
 
+// Yeni ürün eklemek için modali aç
+const openAddModal = async () => {
+    // Form verilerini sıfırla
+    formData.value = {
+        productId: '',
+        serialNumber: '',
+        description: '',
+        senderWarehouseId: '',
+        serviceCenter: '',
+        projectId: '',
+        sendDate: new Date(),
+        estimatedRepairTime: 3,
+        priority: 'Orta',
+        warrantyStatus: true,
+        faultType: 'Donanımsal',
+        trackingNumber: '',
+    };
+    
+    // Proje listesini kontrol et
+    if (projects.value.length === 0) {
+        console.warn('Projeler yüklü değil, yeniden yükleniyor...');
+        try {
+            // Yüklenmeden önce kullanıcıya bilgi ver
+            toast.info('Projeler yükleniyor...');
+            await fetchProjects();
+            
+            // Hala proje yoksa kurulum sayfasına yönlendir
+            if (projects.value.length === 0) {
+                toast.warning('Önce projeleri eklemeniz gerekiyor!');
+                // İsteğe bağlı: Kurulum sayfasına yönlendirme
+                // router.push('/ariza-yonetimi/kurulum');
+                // return;
+            }
+        } catch (error) {
+            console.error('Projeler yüklenirken hata:', error);
+        }
+    }
+    
+    showAddModal.value = true;
+};
+
 // Form gönderimi
 const submitForm = async () => {
+    console.log("Form gönderim işlemi başlıyor");
     loading.value = true;
     
     try {
+        // ZORUNLU - Önce seri numarası kontrolü yapalım
+        if (!formData.value.serialNumber || !formData.value.senderWarehouseId) {
+            toast.error('Seri numarası ve gönderen depo seçilmelidir!', {
+                position: "top-center",
+                icon: "❌"
+            });
+            console.error("Form gönderimi durduruldu: Seri numarası veya depo seçimi eksik");
+            loading.value = false;
+            return;
+        }
+        
+        console.log("Seri numarası validasyonu yapılıyor: " + formData.value.serialNumber);
+        // İşlem öncesi seri numarası kontrolünü zorla yeniden yap
+        const isValid = await validateSerialNumberInWarehouse();
+        console.log("Validasyon sonucu:", isValid);
+        
+        // Kesinlikle validasyonu geçemeyen formlar kabul edilmeyecek
+        if (!isValid) {
+            // Seri numarası doğrulaması geçersizse işlemi iptal et
+            const errorMsg = serialNumberError.value || 'Seri numarası doğrulanamadı, lütfen tekrar kontrol ediniz';
+            toast.error(errorMsg, {
+                position: "top-center",
+                timeout: 7000,
+                icon: "❌",
+                closeButton: true
+            });
+            console.error("Form gönderimi durduruldu: Seri numarası validasyonu başarısız - " + errorMsg);
+            loading.value = false;
+            return;
+        }
+        
+        console.log("Validasyon başarılı, form gönderilecek");
+        
+        console.log("Store'a arızalı ürün kaydı gönderiliyor");
         const result = await arizaStore.addFaultyProduct({
             ...formData.value,
             sendDate: new Date()
         });
+        
+        console.log("Store'dan dönen sonuç:", result);
         
         if (result) {
             toast.success('Arızalı ürün kaydı başarıyla oluşturuldu');
@@ -622,6 +776,10 @@ const submitForm = async () => {
                 faultType: 'Donanımsal',
                 trackingNumber: '',
             };
+            
+            // Hata mesajlarını da temizleyelim
+            serialNumberError.value = '';
+            serialNumberSuccess.value = '';
         }
     } catch (err) {
         console.error('Error adding faulty product:', err);
@@ -670,9 +828,125 @@ const updateProductStatus = async () => {
     }
 };
 
+// Seri numarasının seçilen depoda olup olmadığını kontrol eder
+const validateSerialNumberInWarehouse = async () => {
+    console.log('FORM: validateSerialNumberInWarehouse fonksiyonu çalıştı');
+    // Eğer seri numarası veya depo seçilmediyse işlem yapma
+    if (!formData.value.serialNumber || !formData.value.senderWarehouseId) {
+        console.log('FORM: Seri numarası veya depo seçilmemiş');
+        serialNumberError.value = '';
+        serialNumberSuccess.value = '';
+        return false; // Değerlerden birisi yoksa false döndür
+    }
+    
+    console.log('FORM: Seri numarası kontrolü başlıyor:', formData.value.serialNumber, 'Depo:', formData.value.senderWarehouseId);
+    
+    // Doğrulama işlemi başladı
+    serialNumberValidating.value = true;
+    serialNumberError.value = '';
+    serialNumberSuccess.value = '';
+    
+    try {
+        // serializedInventoryService'den kontrol fonksiyonunu çağır
+        const result = await serializedInventoryService.checkSerialNumberInWarehouse(
+            formData.value.serialNumber,
+            formData.value.senderWarehouseId
+        );        // İlk olarak, seri numaralı ürünün sistemde olup olmadığına bakıyoruz
+        if (result === null || typeof result === 'undefined' || result.notInSystem) {
+            const errorMessage = result?.message || "Bu seri numarası sistemde kayıtlı değil! Arızalı ürün girişi yapılamaz.";
+            serialNumberError.value = errorMessage;
+            
+            // Kullanıcıya pop-up bildirim göster
+            toast.error(errorMessage, {
+                timeout: 5000,
+                position: "top-center",
+                icon: "⚠️"
+            });
+            return false;
+        }if (!result.exists) {
+            // Ürün seçilen depoda değil
+            serialNumberError.value = result.message || "Bu seri numaralı ürün seçilen depoda bulunmuyor!";
+            
+            // Eğer ürün başka bir depoda varsa, hangi depoda olduğunu göster
+            if (result.actualWarehouseId) {
+                const actualWarehouse = warehouses.value.find(w => w.id === result.actualWarehouseId);
+                const warehouseName = actualWarehouse ? actualWarehouse.name : 'başka bir depo';
+                
+                const errorMessage = `Bu seri numaralı ürün seçilen depoda bulunmuyor! Ürün şu anda ${warehouseName}'da kayıtlı.`;
+                serialNumberError.value = errorMessage;
+                
+                // Kullanıcıya pop-up bildirim göster
+                toast.warning(errorMessage, {
+                    timeout: 6000,
+                    position: "top-center",
+                    icon: "🔍"
+                });
+            } else {
+                // Depo bilgisi yoksa genel bir hata ver
+                toast.error("Bu seri numaralı ürün seçilen depoda bulunamadı!", {
+                    timeout: 4000,
+                    position: "top-center"
+                });
+            }
+            return false;        } else {
+            // Ürün bu depoda var
+            serialNumberSuccess.value = "Ürün doğrulandı";
+            console.log('Ürün doğrulandı, sistemde bulundu:', formData.value.serialNumber);
+            
+            // Ürün ID'sini otomatik olarak ayarla
+            if (result.item && result.item.productId) {
+                formData.value.productId = result.item.productId;
+                console.log('Ürün ID otomatik ayarlandı:', formData.value.productId);
+            }
+            
+            // Başarılı bildirim göster
+            toast.success("Ürün doğrulandı, depoda bulundu.", {
+                timeout: 2000,
+                position: "top-right"
+            });
+            
+            return true;
+        }
+    } catch (error) {
+        console.error('Seri numarası doğrulama hatası:', error);
+        serialNumberError.value = 'Seri numarası doğrulanırken bir hata oluştu.';
+        return false;
+    } finally {
+        serialNumberValidating.value = false;
+    }
+};
+
+// Seri numarası veya depo değiştiğinde validasyon yapılsın
+watch(
+    [() => formData.value.serialNumber, () => formData.value.senderWarehouseId],
+    async ([newSerialNumber, newWarehouseId], [oldSerialNumber, oldWarehouseId]) => {
+        // Eğer her ikisi de değiştiyse ve değerler varsa validasyon yap
+        if (
+            newSerialNumber && 
+            newWarehouseId && 
+            (newSerialNumber !== oldSerialNumber || newWarehouseId !== oldWarehouseId)
+        ) {
+            await validateSerialNumberInWarehouse();
+        } else if (!newSerialNumber || !newWarehouseId) {
+            // Değerlerden biri boşsa hata ve başarı mesajlarını temizle
+            serialNumberError.value = '';
+            serialNumberSuccess.value = '';
+        }
+    }
+);
+
 // Sayfa yüklendiğinde verileri getir
-onMounted(() => {
-    fetchData();
+onMounted(async () => {
+    try {
+        await fetchData();
+        console.log('Veri yükleme tamamlandı');
+        
+        // Firebase'den projeleri doğrudan yükleme çağrısı
+        await fetchProjects();
+        console.log('Projeler yüklendi:', projects.value);
+    } catch (error) {
+        console.error('Veri yükleme hatası:', error);
+    }
 });
 </script>
 

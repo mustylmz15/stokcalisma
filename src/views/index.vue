@@ -88,7 +88,7 @@
             <div class="grid xl:grid-cols-3 gap-6 mb-6">
                 <div class="panel h-full xl:col-span-2">
                     <div class="flex items-center justify-between dark:text-white-light mb-5">
-                        <h5 class="font-semibold text-lg">Hasılat</h5>
+                        <h5 class="font-semibold text-lg">Arıza-Onarım İstatistikleri</h5>
                         <div class="dropdown ltr:ml-auto rtl:mr-auto">
                             <Popper :placement="store.rtlClass === 'rtl' ? 'bottom-start' : 'bottom-end'" offsetDistance="0" class="align-middle">
                                 <a href="javascript:;">
@@ -97,24 +97,34 @@
                                 <template #content="{ close }">
                                     <ul @click="close()">
                                         <li>
-                                            <a href="javascript:;">Haftalık</a>
+                                            <a href="javascript:;" @click="filterFaultData('month')">Aylık Görünüm</a>
                                         </li>
                                         <li>
-                                            <a href="javascript:;">Aylık</a>
+                                            <a href="javascript:;" @click="filterFaultData('quarter')">Çeyreklik Görünüm</a>
                                         </li>
                                         <li>
-                                            <a href="javascript:;">Yıllık</a>
+                                            <a href="javascript:;" @click="filterFaultData('year')">Yıllık Görünüm</a>
                                         </li>
                                     </ul>
                                 </template>
                             </Popper>
                         </div>
                     </div>
-                    <p class="text-lg dark:text-white-light/90">Toplam Kâr <span class="text-primary ml-2">$10,840</span></p>
+                    <p class="text-lg dark:text-white-light/90">
+                        <span class="mr-4">Toplam Arıza: <span class="text-danger ml-1">{{ arizaSayisi }}</span></span>
+                        <span>Toplam Onarım: <span class="text-success ml-1">{{ onarimSayisi }}</span></span>
+                        <span class="ml-4 text-sm text-gray-500 italic">
+                            {{ 
+                                chartPeriod === 'month' ? `${new Date().getFullYear()} yılına ait` : 
+                                chartPeriod === 'quarter' ? `${new Date().getFullYear()} yılı çeyrekleri` : 
+                                `Son 5 yıl (${new Date().getFullYear()-4} - ${new Date().getFullYear()})` 
+                            }}
+                        </span>
+                    </p>
                     <div class="relative">
-                        <apexchart height="325" :options="revenueChart" :series="revenueSeries" class="bg-white dark:bg-black rounded-lg overflow-hidden">
+                        <apexchart height="325" :options="revenueChart" :series="arizaOnarimSeries" class="bg-white dark:bg-black rounded-lg overflow-hidden">
                             <!-- loader -->
-                            <div class="min-h-[325px] grid place-content-center bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08]">
+                            <div v-if="loading" class="min-h-[325px] grid place-content-center bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08]">
                                 <span
                                     class="animate-spin border-2 border-black dark:border-white !border-l-transparent rounded-full w-5 h-5 inline-flex"
                                 ></span>
@@ -207,11 +217,11 @@
                 <div class="panel h-full sm:col-span-2 xl:col-span-1">
                     <div class="flex items-center mb-5">
                         <h5 class="font-semibold text-lg dark:text-white-light">
-                            Daily Sales <span class="block text-white-dark text-sm font-normal">Go to columns for details.</span>
+                            Günlük Arızaya Gönderilen Ürünler <span class="block text-white-dark text-sm font-normal">Detaylı bilgi için sütunlara bakın.</span>
                         </h5>
                         <div class="ltr:ml-auto rtl:mr-auto relative">
-                            <div class="w-11 h-11 text-warning bg-[#ffeccb] dark:bg-warning dark:text-[#ffeccb] grid place-content-center rounded-full">
-                                <icon-dollar-sign />
+                            <div class="w-11 h-11 text-danger bg-[#ffe5e5] dark:bg-danger dark:text-[#ffe5e5] grid place-content-center rounded-full">
+                                <icon-alert-circle />
                             </div>
                         </div>
                     </div>
@@ -226,7 +236,7 @@
                         </apexchart>
                     </div>
                 </div>           
-                <div class="panel h-full sm:col-span-2 xl:col-span-1 pb-0">
+                <div class="panel h-full sm:col-span-2 xl:col-span-2 pb-0">
                     <h5 class="font-semibold text-lg dark:text-white-light mb-5">Son Hareketler</h5>
 
                     <perfect-scrollbar
@@ -252,112 +262,45 @@
                     </perfect-scrollbar>
                     <div class="border-t border-white-light dark:border-white/10">
                         <a href="javascript:;" class="font-semibold group hover:text-primary p-4 flex items-center justify-center group">
-                            View All
+                            Tümünü Gör
                             <icon-arrow-left
                                 class="rtl:rotate-180 group-hover:translate-x-1 rtl:group-hover:-translate-x-1 transition duration-300 ltr:ml-1 rtl:mr-1"
                             />
                         </a>
                     </div>
                 </div>
-
-                <div class="panel h-full p-0">
-                    <div class="flex items-center justify-between w-full p-5 absolute">
-                        <div class="relative">
-                            <div
-                                class="text-success dark:text-success-light bg-success-light dark:bg-success w-11 h-11 rounded-lg flex items-center justify-center"
-                            >
-                                <icon-shopping-cart />
-                            </div>
-                        </div>
-                        <h5 class="font-semibold text-2xl ltr:text-right rtl:text-left dark:text-white-light">
-                            3,192
-                            <span class="block text-sm font-normal">Total Orders</span>
-                        </h5>
-                    </div>
-                    <apexchart height="290" :options="totalOrders" :series="totalOrdersSeries" class="bg-white dark:bg-black rounded-lg overflow-hidden">
-                        <!-- loader -->
-                        <div class="min-h-[290px] grid place-content-center bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08]">
-                            <span class="animate-spin border-2 border-black dark:border-white !border-l-transparent rounded-full w-5 h-5 inline-flex"></span>
-                        </div>
-                    </apexchart>
-                </div>
             </div>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="panel h-full w-full">
                     <div class="flex items-center justify-between mb-5">
-                        <h5 class="font-semibold text-lg dark:text-white-light">Recent Orders</h5>
+                        <h5 class="font-semibold text-lg dark:text-white-light">En Son Arızalı Ürün Gönderen Depolar</h5>
                     </div>
                     <div class="table-responsive">
                         <table>
                             <thead>
                                 <tr>
-                                    <th class="ltr:rounded-l-md rtl:rounded-r-md">Customer</th>
-                                    <th>Product</th>
-                                    <th>Invoice</th>
-                                    <th>Price</th>
-                                    <th class="ltr:rounded-r-md rtl:rounded-l-md">Status</th>
+                                    <th class="ltr:rounded-l-md rtl:rounded-r-md">Depo</th>
+                                    <th>Arızalı Ürün</th>
+                                    <th>Seri No</th>
+                                    <th>Gönderim Tarihi</th>
+                                    <th class="ltr:rounded-r-md rtl:rounded-l-md">Durumu</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr class="text-white-dark hover:text-black dark:hover:text-white-light/90 group">
+                                <tr v-for="(item, index) in latestFaultyProducts" :key="index" class="text-white-dark hover:text-black dark:hover:text-white-light/90 group">
                                     <td class="min-w-[150px] text-black dark:text-white">
                                         <div class="flex items-center">
-                                            <img class="w-8 h-8 rounded-md ltr:mr-3 rtl:ml-3 object-cover" src="/assets/images/profile-6.jpeg" alt="avatar" />
-                                            <span class="whitespace-nowrap">Luke Ivory</span>
+                                            <span :class="`w-8 h-8 rounded-md ltr:mr-3 rtl:ml-3 ${getDepoColorClass(item.senderWarehouseId)} grid place-content-center font-semibold`">{{ getDepoInitial(item.senderWarehouseId) }}</span>
+                                            <span class="whitespace-nowrap">{{ getDepoName(item.senderWarehouseId) }}</span>
                                         </div>
                                     </td>
-                                    <td class="text-primary">Headphone</td>
-                                    <td><router-link to="/apps/invoice/preview">#46894</router-link></td>
-                                    <td>$56.07</td>
-                                    <td><span class="badge bg-success shadow-md dark:group-hover:bg-transparent">Paid</span></td>
+                                    <td :class="getItemColorClass(index)">{{ getUrunName(item.productId) }}</td>
+                                    <td>{{ item.serialNumber }}</td>
+                                    <td>{{ formatTarih(item.sendDate) }}</td>
+                                    <td><span :class="`badge ${getDurumClass(item.status)} shadow-md dark:group-hover:bg-transparent`">{{ item.status }}</span></td>
                                 </tr>
-                                <tr class="text-white-dark hover:text-black dark:hover:text-white-light/90 group">
-                                    <td class="text-black dark:text-white">
-                                        <div class="flex items-center">
-                                            <img class="w-8 h-8 rounded-md ltr:mr-3 rtl:ml-3 object-cover" src="/assets/images/profile-7.jpeg" alt="avatar" />
-                                            <span class="whitespace-nowrap">Andy King</span>
-                                        </div>
-                                    </td>
-                                    <td class="text-info">Nike Sport</td>
-                                    <td><router-link to="/apps/invoice/preview">#76894</router-link></td>
-                                    <td>$126.04</td>
-                                    <td><span class="badge bg-secondary shadow-md dark:group-hover:bg-transparent">Shipped</span></td>
-                                </tr>
-                                <tr class="text-white-dark hover:text-black dark:hover:text-white-light/90 group">
-                                    <td class="text-black dark:text-white">
-                                        <div class="flex items-center">
-                                            <img class="w-8 h-8 rounded-md ltr:mr-3 rtl:ml-3 object-cover" src="/assets/images/profile-8.jpeg" alt="avatar" />
-                                            <span class="whitespace-nowrap">Laurie Fox</span>
-                                        </div>
-                                    </td>
-                                    <td class="text-warning">Sunglasses</td>
-                                    <td><router-link to="/apps/invoice/preview">#66894</router-link></td>
-                                    <td>$56.07</td>
-                                    <td><span class="badge bg-success shadow-md dark:group-hover:bg-transparent">Paid</span></td>
-                                </tr>
-                                <tr class="text-white-dark hover:text-black dark:hover:text-white-light/90 group">
-                                    <td class="text-black dark:text-white">
-                                        <div class="flex items-center">
-                                            <img class="w-8 h-8 rounded-md ltr:mr-3 rtl:ml-3 object-cover" src="/assets/images/profile-9.jpeg" alt="avatar" />
-                                            <span class="whitespace-nowrap">Ryan Collins</span>
-                                        </div>
-                                    </td>
-                                    <td class="text-danger">Sport</td>
-                                    <td><router-link to="/apps/invoice/preview">#75844</router-link></td>
-                                    <td>$110.00</td>
-                                    <td><span class="badge bg-secondary shadow-md dark:group-hover:bg-transparent">Shipped</span></td>
-                                </tr>
-                                <tr class="text-white-dark hover:text-black dark:hover:text-white-light/90 group">
-                                    <td class="text-black dark:text-white">
-                                        <div class="flex items-center">
-                                            <img class="w-8 h-8 rounded-md ltr:mr-3 rtl:ml-3 object-cover" src="/assets/images/profile-10.jpeg" alt="avatar" />
-                                            <span class="whitespace-nowrap">Irene Collins</span>
-                                        </div>
-                                    </td>
-                                    <td class="text-secondary">Speakers</td>
-                                    <td><router-link to="/apps/invoice/preview">#46894</router-link></td>
-                                    <td>$56.07</td>
-                                    <td><span class="badge bg-success shadow-md dark:group-hover:bg-transparent">Paid</span></td>
+                                <tr v-if="!latestFaultyProducts || latestFaultyProducts.length === 0" class="text-center">
+                                    <td colspan="5" class="py-4 text-gray-500">Arızalı ürün kaydı bulunamadı.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -366,127 +309,32 @@
 
                 <div class="panel h-full w-full">
                     <div class="flex items-center justify-between mb-5">
-                        <h5 class="font-semibold text-lg dark:text-white-light">Top Selling Product</h5>
+                        <h5 class="font-semibold text-lg dark:text-white-light">En Çok Arızalı Ürün Bulunan Depo</h5>
                     </div>
                     <div class="table-responsive">
                         <table>
                             <thead>
                                 <tr class="border-b-0">
-                                    <th class="ltr:rounded-l-md rtl:rounded-r-md">Product</th>
-                                    <th>Price</th>
-                                    <th>Discount</th>
-                                    <th>Sold</th>
-                                    <th class="ltr:rounded-r-md rtl:rounded-l-md">Source</th>
+                                    <th class="ltr:rounded-l-md rtl:rounded-r-md">Depo</th>
+                                    <th class="ltr:rounded-r-md rtl:rounded-l-md">Arızalı Ürün Sayısı</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr class="text-white-dark hover:text-black dark:hover:text-white-light/90 group">
+                                <tr v-for="(item, index) in mostFaultyWarehouses" :key="index" class="text-white-dark hover:text-black dark:hover:text-white-light/90 group">
                                     <td class="min-w-[150px] text-black dark:text-white">
                                         <div class="flex">
-                                            <img
-                                                class="w-8 h-8 rounded-md ltr:mr-3 rtl:ml-3 object-cover"
-                                                src="/assets/images/product-headphones.jpg"
-                                                alt="avatar"
-                                            />
-                                            <p class="whitespace-nowrap">Headphone <span class="text-primary block text-xs">Digital</span></p>
+                                            <span :class="`w-8 h-8 rounded-md ltr:mr-3 rtl:ml-3 ${getDepoColorClass(item.warehouseId)} grid place-content-center font-semibold`">{{ getDepoInitial(item.warehouseId) }}</span>
+                                            <p class="whitespace-nowrap">{{ item.name }}</p>
                                         </div>
                                     </td>
-                                    <td>$168.09</td>
-                                    <td>$60.09</td>
-                                    <td>170</td>
                                     <td>
-                                        <a class="text-danger flex items-center" href="javascript:;">
-                                            <icon-multiple-forward-right class="rtl:rotate-180 ltr:mr-1 rtl:ml-1" />
-
-                                            Direct
-                                        </a>
+                                        <span :class="`badge badge-outline-${index === 0 ? 'danger' : index === 1 ? 'warning' : index === 2 ? 'info' : 'success'} text-sm`">
+                                            {{ item.count }} ürün
+                                        </span>
                                     </td>
                                 </tr>
-                                <tr class="text-white-dark hover:text-black dark:hover:text-white-light/90 group">
-                                    <td class="text-black dark:text-white">
-                                        <div class="flex">
-                                            <img
-                                                class="w-8 h-8 rounded-md ltr:mr-3 rtl:ml-3 object-cover"
-                                                src="/assets/images/product-shoes.jpg"
-                                                alt="avatar"
-                                            />
-                                            <p class="whitespace-nowrap">Shoes <span class="text-warning block text-xs">Faishon</span></p>
-                                        </div>
-                                    </td>
-                                    <td>$126.04</td>
-                                    <td>$47.09</td>
-                                    <td>130</td>
-                                    <td>
-                                        <a class="text-success flex items-center" href="javascript:;">
-                                            <icon-multiple-forward-right class="rtl:rotate-180 ltr:mr-1 rtl:ml-1" />
-
-                                            Google
-                                        </a>
-                                    </td>
-                                </tr>
-                                <tr class="text-white-dark hover:text-black dark:hover:text-white-light/90 group">
-                                    <td class="text-black dark:text-white">
-                                        <div class="flex">
-                                            <img
-                                                class="w-8 h-8 rounded-md ltr:mr-3 rtl:ml-3 object-cover"
-                                                src="/assets/images/product-watch.jpg"
-                                                alt="avatar"
-                                            />
-                                            <p class="whitespace-nowrap">Watch <span class="text-danger block text-xs">Accessories</span></p>
-                                        </div>
-                                    </td>
-                                    <td>$56.07</td>
-                                    <td>$20.00</td>
-                                    <td>66</td>
-                                    <td>
-                                        <a class="text-warning flex items-center" href="javascript:;">
-                                            <icon-multiple-forward-right class="rtl:rotate-180 ltr:mr-1 rtl:ml-3" />
-
-                                            Ads
-                                        </a>
-                                    </td>
-                                </tr>
-                                <tr class="text-white-dark hover:text-black dark:hover:text-white-light/90 group">
-                                    <td class="text-black dark:text-white">
-                                        <div class="flex">
-                                            <img
-                                                class="w-8 h-8 rounded-md ltr:mr-3 rtl:ml-3 object-cover"
-                                                src="/assets/images/product-laptop.jpg"
-                                                alt="avatar"
-                                            />
-                                            <p class="whitespace-nowrap">Laptop <span class="text-primary block text-xs">Digital</span></p>
-                                        </div>
-                                    </td>
-                                    <td>$110.00</td>
-                                    <td>$33.00</td>
-                                    <td>35</td>
-                                    <td>
-                                        <a class="text-secondary flex items-center" href="javascript:;">
-                                            <icon-multiple-forward-right class="rtl:rotate-180 ltr:mr-1 rtl:ml-3" />
-                                            Email
-                                        </a>
-                                    </td>
-                                </tr>
-                                <tr class="text-white-dark hover:text-black dark:hover:text-white-light/90 group">
-                                    <td class="text-black dark:text-white">
-                                        <div class="flex">
-                                            <img
-                                                class="w-8 h-8 rounded-md ltr:mr-3 rtl:ml-3 object-cover"
-                                                src="/assets/images/product-camera.jpg"
-                                                alt="avatar"
-                                            />
-                                            <p class="whitespace-nowrap">Camera <span class="text-primary block text-xs">Digital</span></p>
-                                        </div>
-                                    </td>
-                                    <td>$56.07</td>
-                                    <td>$26.04</td>
-                                    <td>30</td>
-                                    <td>
-                                        <a class="text-primary flex items-center" href="javascript:;">
-                                            <icon-multiple-forward-right class="rtl:rotate-180 ltr:mr-1 rtl:ml-3" />
-                                            Referral
-                                        </a>
-                                    </td>
+                                <tr v-if="!mostFaultyWarehouses || mostFaultyWarehouses.length === 0" class="text-center">
+                                    <td colspan="2" class="py-4 text-gray-500">Arızalı ürün kaydı bulunamadı.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -496,14 +344,19 @@
         </div>
     </div>
 </template>
-<script lang="ts" setup>
-    import { ref, computed, onMounted } from 'vue';
+<script lang="ts" setup>    import { ref, computed, onMounted } from 'vue';
     import apexchart from 'vue3-apexcharts';
-
+    
     import { useAppStore } from '@/stores/index';
     import { useInventoryStore } from '@/stores/inventory';
     import { useAuthStore } from '@/stores/auth-store';
+    import { useArizaStore } from '@/stores/ariza-store';
+    import type { FaultyProductRecord } from '@/stores/ariza-store';
+    import { Timestamp } from 'firebase/firestore';
     const inventoryStore = useInventoryStore();
+    const authStore = useAuthStore();
+    const arizaStore = useArizaStore();
+    
     onMounted(async () => {
         try {
             console.log('Dashboard yükleniyor...');
@@ -516,6 +369,19 @@
             } else {
                 console.log('Envanter deposu zaten başlatılmış.');
             }
+            
+            // Arıza deposunu başlat
+            console.log('Arıza deposu verilerini yüklüyoruz...');
+            await arizaStore.initializeStore();
+            console.log(`Arıza deposu başlatıldı. ${arizaStore.getFaultyProducts.length} adet arızalı ürün verisi yüklendi.`);
+            
+            // Arıza verilerini gerçek verilerle doldur
+            await loadRealFaultData();
+            console.log('Arıza-Onarım istatistikleri yüklendi.');
+            
+            // Günlük arıza verilerini yükle
+            await loadDailyFaultStats();
+            console.log('Günlük arıza istatistikleri yüklendi.');
             
             // Stok verilerini kontrol et
             console.log('Stoklar:', inventoryStore.stocks.length);
@@ -555,8 +421,8 @@
             console.error('Veriler yüklenirken hata oluştu:', error);
         }
     });
-    // auth store for role and depot filtering
-    const authStore = useAuthStore();
+    
+    // auth store için rol ve depo filtreleme
     const isAdminUser = computed(() => authStore.isAdmin);
     const authorizedDepot = computed(() => authStore.getAuthorizedDepot);
 
@@ -595,26 +461,26 @@
                 left: -7,
                 top: 22,
             },
-            colors: isDark ? ['#2196f3', '#e7515a'] : ['#1b55e2', '#e7515a'],
+            colors: isDark ? ['#e7515a', '#8dbf42'] : ['#e7515a', '#8dbf42'], // Kırmızı: arıza, Yeşil: onarım
             markers: {
                 discrete: [
                     {
                         seriesIndex: 0,
                         dataPointIndex: 6,
-                        fillColor: '#1b55e2',
+                        fillColor: '#e7515a',
                         strokeColor: 'transparent',
                         size: 7,
                     },
                     {
                         seriesIndex: 1,
                         dataPointIndex: 5,
-                        fillColor: '#e7515a',
+                        fillColor: '#8dbf42',
                         strokeColor: 'transparent',
                         size: 7,
                     },
                 ],
             },
-            labels: ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+            labels: chartLabels.value,
             xaxis: {
                 axisBorder: {
                     show: false,
@@ -638,7 +504,7 @@
                 tickAmount: 7,
                 labels: {
                     formatter: (value: number) => {
-                        return value / 1000 + 'K';
+                        return Math.round(value).toString();
                     },
                     offsetX: isRtl ? -30 : -10,
                     offsetY: 0,
@@ -704,16 +570,26 @@
         };
     });
 
-    const revenueSeries = ref([
+    // Arıza Onarım grafiği için veri serisi
+    const arizaOnarimSeries = ref([
         {
-            name: 'Gelirler',
-            data: [16800, 16800, 15500, 17800, 15500, 17000, 19000, 16000, 15000, 17000, 14000, 17000],
+            name: 'Arızaya Gönderilen',
+            data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], // Boş veri, gerçek veri loadRealFaultData tarafından doldurulacak
         },
         {
-            name: 'Giderler',
-            data: [16500, 17500, 16200, 17300, 16000, 19500, 16000, 17000, 16000, 19000, 18000, 19000],
+            name: 'Onarımdan Gelen',
+            data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], // Boş veri, gerçek veri loadRealFaultData tarafından doldurulacak
         },
     ]);
+    
+    // Arıza ve Onarım sayıları (toplam)
+    const arizaSayisi = computed(() => {
+        return arizaOnarimSeries.value[0].data.reduce((sum, value) => sum + value, 0);
+    });
+    
+    const onarimSayisi = computed(() => {
+        return arizaOnarimSeries.value[1].data.reduce((sum, value) => sum + value, 0);
+    });
 
     // sales by category
     const salesByCategory = computed(() => {
@@ -841,7 +717,7 @@
                 show: true,
                 width: 1,
             },
-            colors: ['#e2a03f', '#e0e6ed'],
+            colors: ['#e7515a', '#e0e6ed'],
             responsive: [
                 {
                     breakpoint: 480,
@@ -856,12 +732,34 @@
             ],
             xaxis: {
                 labels: {
+                    show: true,
+                    style: {
+                        fontSize: '10px',
+                        fontWeight: 'bold',
+                    },
+                },
+                categories: ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'],
+                axisTicks: {
                     show: false,
                 },
-                categories: ['Sun', 'Mon', 'Tue', 'Wed', 'Thur', 'Fri', 'Sat'],
+                axisBorder: {
+                    show: false,
+                },
             },
             yaxis: {
                 show: false,
+            },
+            tooltip: {
+                y: {
+                    formatter: (val) => {
+                        return `${val} Ürün`;
+                    },
+                },
+                x: {
+                    formatter: (val) => {
+                        return `${val} günü`;
+                    },
+                },
             },
             fill: {
                 opacity: 1,
@@ -894,12 +792,12 @@
 
     const dailySalesSeries = ref([
         {
-            name: 'Sales',
-            data: [44, 55, 41, 67, 22, 43, 21],
+            name: 'Arızaya Gönderilen Ürün',
+            data: [6, 8, 5, 10, 7, 12, 4],
         },
         {
-            name: 'Last Week',
-            data: [13, 23, 20, 8, 13, 27, 33],
+            name: 'Geçen Hafta',
+            data: [3, 5, 7, 6, 4, 9, 2],
         },
     ]);
 
@@ -1448,5 +1346,518 @@ const totalCategories = computed(() => {
        console.error('Ürün filtrelemede hata:', error);
        return [];
    }
+});
+    
+    // Arıza-Onarım Grafiği İçin Değişkenler
+    const loading = ref(false);
+    
+    // Grafik periyodu (ay, çeyrek, yıl)
+    const chartPeriod = ref<'month' | 'quarter' | 'year'>('month');
+    
+    // Seçilen periyoda göre X ekseni etiketleri
+    const chartLabels = computed(() => {
+        if (chartPeriod.value === 'month') {
+            return ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+        } else if (chartPeriod.value === 'quarter') {
+            return ['1. Çeyrek', '2. Çeyrek', '3. Çeyrek', '4. Çeyrek'];
+        } else if (chartPeriod.value === 'year') {
+            const currentYear = new Date().getFullYear();
+            return [
+                (currentYear - 4).toString(),
+                (currentYear - 3).toString(),
+                (currentYear - 2).toString(),
+                (currentYear - 1).toString(),
+                currentYear.toString()
+            ];
+        }
+        return [];
+    });
+    
+    // Arıza ve onarım verilerini filtreleme fonksiyonu
+    async function filterFaultData(period: 'month' | 'quarter' | 'year') {
+        loading.value = true;
+        chartPeriod.value = period; // Grafik periyodunu güncelle
+        
+        try {
+            // Arıza deposundan veri yükleme (eğer daha önce yüklenmemişse)
+            if (!arizaStore.getFaultyProducts || arizaStore.getFaultyProducts.length === 0) {
+                await arizaStore.fetchFaultyProducts();
+            }
+            
+            // Gerçek verileri hesapla
+            if (period === 'month') {
+                // Aylık görünüm - 12 ay
+                calculateMonthlyFaultStats();
+            } else if (period === 'quarter') {
+                // Çeyreklik görünüm
+                calculateQuarterlyFaultStats();
+            } else if (period === 'year') {
+                // Yıllık görünüm - son 5 yıl
+                calculateYearlyFaultStats();
+            }
+        } catch (error) {
+            console.error(`${period} periyodu için arıza verileri yüklenirken hata:`, error);
+        } finally {
+            loading.value = false;
+        }
+    }
+    
+    // Arıza-Onarım verisini gerçek verilerle doldur
+    async function loadRealFaultData() {
+        loading.value = true;
+        
+        try {
+            // Arıza deposundan veri yükleme (eğer daha önce yüklenmemişse)
+            if (!arizaStore.getFaultyProducts || arizaStore.getFaultyProducts.length === 0) {
+                await arizaStore.fetchFaultyProducts();
+            }
+            
+            // Varsayılan olarak aylık görünümü yükle
+            calculateMonthlyFaultStats();
+            
+            // En son arızalı ürünleri yükle
+            await loadLatestFaultyProducts();
+            
+            console.log('Arıza istatistikleri yüklendi. En çok arızaya sahip depolar:', mostFaultyWarehouses.value);
+            
+        } catch (error) {
+            console.error('Arıza verileri yüklenirken hata:', error);
+        } finally {
+            loading.value = false;
+        }
+    }
+    
+    // Gerçek arıza verilerini analiz ederek aylık istatistikleri hesapla
+    function calculateMonthlyFaultStats() {
+        // Arıza verilerini al
+        const faultyProducts = arizaStore.getFaultyProducts;
+        
+        if (!faultyProducts || faultyProducts.length === 0) {
+            console.warn('Hesaplanacak arıza verisi bulunamadı');
+            return;
+        }
+        
+        // Admin olmayan kullanıcılar için depo filtresi uygula
+        let filteredProducts = faultyProducts;
+        if (!isAdminUser.value && authorizedDepot.value) {
+            filteredProducts = faultyProducts.filter(p => p.senderWarehouseId === authorizedDepot.value);
+        }
+        
+        // Aylık istatistik dizileri
+        const monthlyFaults = Array(12).fill(0);
+        const monthlyRepairs = Array(12).fill(0);
+        
+        // Mevcut tarih bilgileri
+        const today = new Date();
+        const currentYear = today.getFullYear();
+        
+        // Her bir arızalı ürün kaydını analiz et
+        filteredProducts.forEach(product => {
+            try {
+                // Gönderim tarihi
+                const sendDate = product.sendDate instanceof Date 
+                    ? product.sendDate 
+                    : product.sendDate.toDate();
+                
+                // Geri dönüş tarihi (varsa)
+                const returnDate = product.returnedAt instanceof Date 
+                    ? product.returnedAt 
+                    : product.returnedAt ? product.returnedAt.toDate() : null;
+                
+                // Bu yıl içindeki gönderimler için ay bazında sayım
+                if (sendDate && sendDate.getFullYear() === currentYear) {
+                    const monthIndex = sendDate.getMonth();
+                    monthlyFaults[monthIndex]++;
+                }
+                
+                // Bu yıl içindeki dönüşler için ay bazında sayım
+                if (returnDate && returnDate.getFullYear() === currentYear) {
+                    const monthIndex = returnDate.getMonth();
+                    monthlyRepairs[monthIndex]++;
+                }
+            } catch (error) {
+                console.error('Arıza verisi işlenirken hata:', error);
+            }
+        });
+        
+        // Veriyi grafik serisine aktar
+        arizaOnarimSeries.value = [
+            {
+                name: 'Arızaya Gönderilen',
+                data: monthlyFaults
+            },
+            {
+                name: 'Onarımdan Gelen',
+                data: monthlyRepairs
+            }
+        ];
+        
+        console.log('Aylık arıza istatistikleri hesaplandı:', {
+            ariza: monthlyFaults,
+            onarim: monthlyRepairs
+        });
+    }
+    
+    // Gerçek arıza verilerini analiz ederek çeyreklik istatistikleri hesapla
+    function calculateQuarterlyFaultStats() {
+        // Arıza verilerini al
+        const faultyProducts = arizaStore.getFaultyProducts;
+        
+        if (!faultyProducts || faultyProducts.length === 0) {
+            console.warn('Hesaplanacak arıza verisi bulunamadı');
+            return;
+        }
+        
+        // Admin olmayan kullanıcılar için depo filtresi uygula
+        let filteredProducts = faultyProducts;
+        if (!isAdminUser.value && authorizedDepot.value) {
+            filteredProducts = faultyProducts.filter(p => p.senderWarehouseId === authorizedDepot.value);
+        }
+        
+        // Çeyreklik istatistik dizileri
+        const quarterlyFaults = [0, 0, 0, 0]; // Q1, Q2, Q3, Q4
+        const quarterlyRepairs = [0, 0, 0, 0]; // Q1, Q2, Q3, Q4
+        
+        // Mevcut tarih bilgileri
+        const today = new Date();
+        const currentYear = today.getFullYear();
+        
+        // Her bir arızalı ürün kaydını analiz et
+        filteredProducts.forEach(product => {
+            try {
+                // Gönderim tarihi
+                const sendDate = product.sendDate instanceof Date 
+                    ? product.sendDate 
+                    : product.sendDate.toDate();
+                
+                // Geri dönüş tarihi (varsa)
+                const returnDate = product.returnedAt instanceof Date 
+                    ? product.returnedAt 
+                    : product.returnedAt ? product.returnedAt.toDate() : null;
+                
+                // Bu yıl içindeki gönderimler için çeyrek bazında sayım
+                if (sendDate && sendDate.getFullYear() === currentYear) {
+                    const quarterIndex = Math.floor(sendDate.getMonth() / 3);
+                    quarterlyFaults[quarterIndex]++;
+                }
+                
+                // Bu yıl içindeki dönüşler için çeyrek bazında sayım
+                if (returnDate && returnDate.getFullYear() === currentYear) {
+                    const quarterIndex = Math.floor(returnDate.getMonth() / 3);
+                    quarterlyRepairs[quarterIndex]++;
+                }
+            } catch (error) {
+                console.error('Arıza verisi işlenirken hata:', error);
+            }
+        });
+        
+        // Veriyi grafik serisine aktar
+        arizaOnarimSeries.value = [
+            {
+                name: 'Arızaya Gönderilen',
+                data: quarterlyFaults
+            },
+            {
+                name: 'Onarımdan Gelen',
+                data: quarterlyRepairs
+            }
+        ];
+        
+        console.log('Çeyreklik arıza istatistikleri hesaplandı:', {
+            ariza: quarterlyFaults,
+            onarim: quarterlyRepairs
+        });
+    }
+    
+    // Gerçek arıza verilerini analiz ederek yıllık istatistikleri hesapla
+    function calculateYearlyFaultStats() {
+        // Arıza verilerini al
+        const faultyProducts = arizaStore.getFaultyProducts;
+        
+        if (!faultyProducts || faultyProducts.length === 0) {
+            console.warn('Hesaplanacak arıza verisi bulunamadı');
+            return;
+        }
+        
+        // Admin olmayan kullanıcılar için depo filtresi uygula
+        let filteredProducts = faultyProducts;
+        if (!isAdminUser.value && authorizedDepot.value) {
+            filteredProducts = faultyProducts.filter(p => p.senderWarehouseId === authorizedDepot.value);
+        }
+        
+        // Yıllık istatistik dizileri - son 5 yıl
+        const currentYear = new Date().getFullYear();
+        const startYear = currentYear - 4; // 5 yıl göstereceğiz
+        const yearlyFaults = [0, 0, 0, 0, 0]; // Son 5 yıl
+        const yearlyRepairs = [0, 0, 0, 0, 0]; // Son 5 yıl
+        
+        // Her bir arızalı ürün kaydını analiz et
+        filteredProducts.forEach(product => {
+            try {
+                // Gönderim tarihi
+                const sendDate = product.sendDate instanceof Date 
+                    ? product.sendDate 
+                    : product.sendDate.toDate();
+                
+                // Geri dönüş tarihi (varsa)
+                const returnDate = product.returnedAt instanceof Date 
+                    ? product.returnedAt 
+                    : product.returnedAt ? product.returnedAt.toDate() : null;
+                
+                // Son 5 yıl içindeki gönderimler için yıl bazında sayım
+                if (sendDate && sendDate.getFullYear() >= startYear) {
+                    const yearIndex = sendDate.getFullYear() - startYear;
+                    if (yearIndex >= 0 && yearIndex < 5) {
+                        yearlyFaults[yearIndex]++;
+                    }
+                }
+                
+                // Son 5 yıl içindeki dönüşler için yıl bazında sayım
+                if (returnDate && returnDate.getFullYear() >= startYear) {
+                    const yearIndex = returnDate.getFullYear() - startYear;
+                    if (yearIndex >= 0 && yearIndex < 5) {
+                        yearlyRepairs[yearIndex]++;
+                    }
+                }
+            } catch (error) {
+                console.error('Arıza verisi işlenirken hata:', error);
+            }
+        });
+        
+        // Veriyi grafik serisine aktar
+        arizaOnarimSeries.value = [
+            {
+                name: 'Arızaya Gönderilen',
+                data: yearlyFaults
+            },
+            {
+                name: 'Onarımdan Gelen',
+                data: yearlyRepairs
+            }
+        ];
+        
+        console.log('Yıllık arıza istatistikleri hesaplandı:', {
+            ariza: yearlyFaults,
+            onarim: yearlyRepairs
+        });
+    }
+
+    // Günlük arıza sayılarını yükle
+    async function loadDailyFaultStats() {
+        try {
+            // Bugünün tarihini al
+            const today = new Date();
+            
+            // 7 gün öncesinin tarihini hesapla
+            const sevenDaysAgo = new Date(today);
+            sevenDaysAgo.setDate(today.getDate() - 7);
+            
+            // 14 gün öncesinin tarihini hesapla (geçen haftanın başlangıcı)
+            const fourteenDaysAgo = new Date(today);
+            fourteenDaysAgo.setDate(today.getDate() - 14);
+            
+            // Son 7 günün tarihleri
+            const last7Days = [];
+            for (let i = 6; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(today.getDate() - i);
+                date.setHours(0, 0, 0, 0);
+                last7Days.push(date);
+            }
+            
+            // Arıza verileri
+            const faultyProducts = arizaStore.getFaultyProducts;
+            if (!faultyProducts || faultyProducts.length === 0) {
+                console.warn('Günlük arıza için gösterilecek veri bulunamadı');
+                return;
+            }
+            
+            // Filtrele: Admin olmayan kullanıcılar sadece kendi depolarındaki verileri görebilir
+            let filteredProducts = faultyProducts;
+            if (!isAdminUser.value && authorizedDepot.value) {
+                filteredProducts = faultyProducts.filter(p => p.senderWarehouseId === authorizedDepot.value);
+            }
+            
+            // Bu hafta ve geçen hafta için veri dizileri
+            const currentWeekData = [0, 0, 0, 0, 0, 0, 0];
+            const lastWeekData = [0, 0, 0, 0, 0, 0, 0];
+            
+            // Her bir arızalı ürün kaydı için
+            filteredProducts.forEach(product => {
+                try {
+                    // Gönderim tarihini alalım
+                    const sendDate = product.sendDate instanceof Date 
+                        ? product.sendDate 
+                        : product.sendDate.toDate();
+                    
+                    sendDate.setHours(0, 0, 0, 0); // Saat, dakika ve saniyeyi sıfırla (sadece gün kısmıyla karşılaştırmak için)
+                    
+                    // Bu hafta içindeki bir gün için
+                    if (sendDate >= sevenDaysAgo && sendDate <= today) {
+                        // Haftanın hangi gününe denk geldiğini bul
+                        for (let i = 0; i < 7; i++) {
+                            if (sendDate.getTime() === last7Days[i].getTime()) {
+                                currentWeekData[i]++;
+                                break;
+                            }
+                        }
+                    }
+                    // Geçen hafta içindeki bir gün için
+                    else if (sendDate >= fourteenDaysAgo && sendDate < sevenDaysAgo) {
+                        // Haftanın hangi gününe denk geldiğini bul (geçen haftaki aynı gün)
+                        const dayOfWeek = sendDate.getDay();
+                        lastWeekData[dayOfWeek]++;
+                    }
+                } catch (err) {
+                    console.error('Ürün tarihi işlenirken hata:', err);
+                }
+            });
+            
+            // Günlük arıza grafiğini güncelle
+            dailySalesSeries.value = [
+                {
+                    name: 'Arızaya Gönderilen Ürün',
+                    data: currentWeekData
+                },
+                {
+                    name: 'Geçen Hafta',
+                    data: lastWeekData
+                }
+            ];
+            
+            console.log('Günlük arıza verileri başarıyla güncellendi:', {
+                currentWeek: currentWeekData, 
+                lastWeek: lastWeekData
+            });
+        } catch (error) {
+            console.error('Günlük arıza istatistikleri yüklenirken hata:', error);
+        }
+    }
+    
+    // En son arızalı ürün gönderen depolar için veri ve yardımcı fonksiyonlar
+const latestFaultyProducts = ref<FaultyProductRecord[]>([]);
+
+// En son arızalı ürünleri yükle
+async function loadLatestFaultyProducts() {
+    try {
+        // faultyProductService'den son gönderilen 5 arızalı ürünü al
+        const faultyProductService = (await import('@/services/faultyProductService')).default;
+        const products = await faultyProductService.getLatestFaultyProducts(5);
+        
+        // Admin olmayan kullanıcılar için depo filtresi uygula (zaten serviste uygulanıyor)
+        latestFaultyProducts.value = products;
+        
+        console.log('En son arızalı ürünler yüklendi:', products.length);
+    } catch (error) {
+        console.error('En son arızalı ürünler yüklenirken hata:', error);
+        // Hata durumunda boş bir dizi atayalım
+        latestFaultyProducts.value = [];
+    }
+}
+
+// Depo adını getir
+function getDepoName(warehouseId: string) {
+    const warehouse = inventoryStore.warehouses.find(w => w.id === warehouseId);
+    return warehouse ? warehouse.name : 'Bilinmeyen Depo';
+}
+
+// Depo rengini getir (ilk harfe göre farklı renk sınıfları)
+function getDepoColorClass(warehouseId: string) {
+    const colors = ['bg-primary', 'bg-success', 'bg-info', 'bg-danger', 'bg-warning', 'bg-secondary', 'bg-dark'];
+    const warehouse = inventoryStore.warehouses.find(w => w.id === warehouseId);
+    
+    if (!warehouse) return colors[0];
+    
+    // Depo adının ilk harfine göre belirli bir renk döndür
+    const firstChar = warehouse.name.charAt(0).toLowerCase();
+    const charCode = firstChar.charCodeAt(0) - 'a'.charCodeAt(0);
+    return colors[Math.abs(charCode) % colors.length];
+}
+
+// Depo adının ilk harfini getir
+function getDepoInitial(warehouseId: string) {
+    const warehouse = inventoryStore.warehouses.find(w => w.id === warehouseId);
+    return warehouse ? warehouse.name.charAt(0).toUpperCase() : 'X';
+}
+
+// Ürün adını getir
+function getUrunName(productId: string) {
+    const product = inventoryStore.products.find(p => p.id === productId);
+    return product ? product.name : 'Bilinmeyen Ürün';
+}
+
+// Ürün için renk sınıfı getir (sıra numarasına göre)
+function getItemColorClass(index: number) {
+    const textColors = ['text-primary', 'text-success', 'text-danger', 'text-warning', 'text-info'];
+    return textColors[index % textColors.length];
+}
+
+// Tarihi formatla
+function formatTarih(tarih: Date | Timestamp | undefined) {
+    if (!tarih) return '-';
+    
+    // Firebase Timestamp veya JavaScript Date objesi kontrolü
+    const date = tarih instanceof Date ? tarih : tarih.toDate();
+    
+    // Türkçe tarih formatı: GG.AA.YYYY
+    return date.toLocaleDateString('tr-TR');
+}
+
+// Durum sınıfını getir
+function getDurumClass(status: string) {
+    const statusMap: Record<string, string> = {
+        'Gönderildi': 'badge-outline-info',
+        'Serviste': 'badge-outline-warning',
+        'Onarılıyor': 'badge-outline-primary',
+        'Onarıldı': 'badge-outline-success',
+        'İade Edildi': 'badge-outline-dark',
+        'İade Alındı': 'badge-outline-secondary'
+    };
+    
+    return statusMap[status] || 'badge-outline-dark';
+}
+
+// En çok arızalı ürün bulunan depoların listesi
+const mostFaultyWarehouses = computed(() => {
+    // Arıza deposu başlatılmadıysa boş dizi döndür
+    if (!arizaStore || !arizaStore.getFaultyProducts || arizaStore.getFaultyProducts.length === 0) {
+        return [];
+    }
+    
+    const faultyProducts = arizaStore.getFaultyProducts;
+    
+    // Yetkili depo var ise ve admin değilse filtreleme yap
+    let filteredProducts = faultyProducts;
+    if (!isAdminUser.value && authorizedDepot.value) {
+        const warehouseObj = inventoryStore.getWarehouses.find(w => w.code === authorizedDepot.value);
+        if (warehouseObj) {
+            filteredProducts = faultyProducts.filter(p => p.senderWarehouseId === warehouseObj.id);
+        }
+    }
+    
+    // Depo ID'lerine göre grupla ve say
+    const warehouseCounts: Record<string, number> = {};
+    
+    filteredProducts.forEach(product => {
+        const warehouseId = product.senderWarehouseId;
+        if (!warehouseId) return;
+        
+        if (!warehouseCounts[warehouseId]) {
+            warehouseCounts[warehouseId] = 0;
+        }
+        warehouseCounts[warehouseId]++;
+    });
+    
+    // En çok arızaya sahip olanları seç
+    const topWarehouses = Object.entries(warehouseCounts)
+        .map(([warehouseId, count]) => ({
+            warehouseId,
+            count,
+            name: getDepoName(warehouseId)
+        }))
+        .sort((a, b) => b.count - a.count) // Azalan sırada sırala
+        .slice(0, 5); // En üstteki 5 tanesini al
+    
+    return topWarehouses;
 });
 </script>

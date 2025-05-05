@@ -43,6 +43,30 @@ const routes: RouteRecordRaw[] = [
     
     // Arızalı ürün yönetimi sayfası
     {
+        path: '/ariza-yonetimi',
+        name: 'fault-management',
+        component: () => import(/* webpackChunkName: "fault-management" */ '../views/fault-management/index.vue'),
+        meta: { requiresAuth: true, layout: 'app' }
+    },
+    
+    // Veritabanı yönetimi sayfası
+    {
+        path: '/database-management',
+        name: 'database-management',
+        component: () => import(/* webpackChunkName: "database-management" */ '../views/database-management.vue'),
+        meta: { requiresAuth: true, requiresAdmin: true, layout: 'app' }
+    },
+    
+    // Arıza yönetimi kurulum sayfası
+    {
+        path: '/ariza-yonetimi/kurulum',
+        name: 'fault-management-setup',
+        component: () => import(/* webpackChunkName: "fault-management-setup" */ '../views/fault-management/setup.vue'),
+        meta: { requiresAuth: true, requiresAdmin: true, layout: 'app' }
+    },
+    
+    // Envanter içindeki eski arıza yönetimi sayfası (eski rota, terk edilecek)
+    {
         path: '/envanter/ariza-yonetimi',
         name: 'ariza-yonetimi',
         component: () => import(/* webpackChunkName: "fault-management" */ '../views/inventory/ariza-yonetimi.vue'),
@@ -195,16 +219,25 @@ const routes: RouteRecordRaw[] = [
         path: '/inventory/products',
         name: 'inventory-products',
         component: () => import(/* webpackChunkName: "inventory-products" */ '../views/inventory/products/list.vue'),
+        meta: { requiresAuth: true, requiresAdmin: true, layout: 'app' } // Sadece admin kullanıcıları erişebilir
     },
     {
         path: '/inventory/products/add',
         name: 'inventory-product-add',
         component: () => import(/* webpackChunkName: "inventory-product-add" */ '../views/inventory/products/add.vue'),
+        meta: { requiresAuth: true, requiresAdmin: true, layout: 'app' } // Sadece admin kullanıcıları erişebilir
     },
     {
         path: '/inventory/products/edit/:id',
         name: 'inventory-product-edit',
         component: () => import(/* webpackChunkName: "inventory-product-edit" */ '../views/inventory/products/edit.vue'),
+        meta: { requiresAuth: true, requiresAdmin: true, layout: 'app' } // Sadece admin kullanıcıları erişebilir
+    },
+    {
+        path: '/inventory/products/manage',
+        name: 'inventory-product-manage',
+        component: () => import(/* webpackChunkName: "inventory-product-manage" */ '../views/inventory/products/manage.vue'),
+        meta: { requiresAuth: true, layout: 'app' } // Depo kullanıcıları ve adminler erişebilir, içeride ayrıca kontrol yapılacak
     },
     {
         path: '/inventory/categories',

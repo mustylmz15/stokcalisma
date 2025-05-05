@@ -1,31 +1,56 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
-import axios from 'axios';
+import { ref, computed } from 'vue';
+import { collection, getDocs, getDoc, doc, Timestamp } from 'firebase/firestore';
+import { db } from '@/firebase';
+import { useAuthStore } from './auth-store';
 
 interface Project {
     id: string;
     name: string;
     description?: string;
-    createdAt?: string;
-    updatedAt?: string;
+    createdAt?: Date | Timestamp;
+    updatedAt?: Date | Timestamp;
 }
 
 export const useProjectStore = defineStore('project', () => {
+    const authStore = useAuthStore();
     const projects = ref<Project[]>([]);
     const currentProject = ref<Project | null>(null);
     const loading = ref(false);
     const error = ref<string | null>(null);
     const showProjectSelectorModal = ref(false);
-
-    // Kullanıcının erişebileceği tüm projeleri getir
+    
+    // Aktif proje ID'si
+    const activeProjectId = ref<string | null>(null);    // Projeleri Firebase'den getir
     const fetchProjects = async () => {
         loading.value = true;
         error.value = null;
         
         try {
-            // API'den projeleri çekme
-            const response = await axios.get('/api/projects');
-            projects.value = response.data;
+            const projectsRef = collection(db, 'projects');
+            const querySnapshot = await getDocs(projectsRef);
+            
+            const fetchedProjects: Project[] = [];
+            
+            querySnapshot.forEach((doc) => {
+                const data = doc.data() as Omit<Project, 'id'>;
+                fetchedProjects.push({
+                    ...data,
+                    id: doc.id,
+                    createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : data.createdAt,
+                    updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : data.updatedAt,
+                });
+            });
+            
+            projects.value = fetchedProjects;
+            
+            // Mevcut aktif projeyi kontrol et
+            if (activeProjectId.value) {
+                const activeProject = fetchedProjects.find(p => p.id === activeProjectId.value);
+                if (activeProject) {
+                    currentProject.value = activeProject;
+                }
+            }
         } catch (err: any) {
             error.value = err.message || 'Projeler yüklenirken bir hata oluştu';
             console.error('Projeler yüklenirken hata:', err);
@@ -33,39 +58,69 @@ export const useProjectStore = defineStore('project', () => {
             loading.value = false;
         }
     };
+    
+    // Varsayılan projeleri ekle (demo projeler)
+    const addDefaultProjects = () => {
+        // Demo projeler
+        projects.value = [
+            { id: 'project1', name: 'TYP Projesi', description: 'Türkiye Yolcu Projelendirmesi' },
+            { id: 'project2', name: 'KGYS Projesi', description: 'Kent Güvenlik Yönetim Sistemi' },
+            { id: 'project3', name: 'EDS Projesi', description: 'Elektronik Denetleme Sistemi' }
+        ];
+        
+        console.log('Demo projeler eklendi:', projects.value);
+        return projects.value;
+    };
 
     // Seçilen projeyi ayarla
-    const setCurrentProject = async (projectId: string) => {
+    const setCurrentProject = async (projectId: string | null) => {
         loading.value = true;
         error.value = null;
         
         try {
-            // Seçilen projenin detaylarını al veya varolan projeler içinden bul
+            if (!projectId) {
+                activeProjectId.value = null;
+                currentProject.value = null;
+                localStorage.removeItem('currentProjectId');
+                return true;
+            }
+            
+            // Projeyi varolan projeler içinden bul
             let projectToSet;
             
             if (projects.value.length > 0) {
                 projectToSet = projects.value.find(p => p.id === projectId);
             }
             
-            if (!projectToSet) {
-                const response = await axios.get(`/api/projects/${projectId}`);
-                projectToSet = response.data;
+            if (!projectToSet && projectId) {
+                // Projeyi Firebase'den getir
+                const projectRef = doc(db, 'projects', projectId);
+                const projectSnap = await getDoc(projectRef);
+                
+                if (projectSnap.exists()) {
+                    const data = projectSnap.data() as Omit<Project, 'id'>;
+                    projectToSet = {
+                        ...data,
+                        id: projectSnap.id,
+                        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : data.createdAt,
+                        updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : data.updatedAt,
+                    };
+                }
             }
             
             // Projeyi ayarla ve local storage'a kaydet
             if (projectToSet) {
                 currentProject.value = projectToSet;
+                activeProjectId.value = projectId;
                 localStorage.setItem('currentProjectId', projectId);
-                
-                // API'ye seçilen projeyi bildir (isteğe bağlı)
-                await axios.post('/api/users/current-project', { projectId });
+                return true;
             } else {
                 throw new Error('Proje bulunamadı');
             }
         } catch (err: any) {
             error.value = err.message || 'Proje seçilirken bir hata oluştu';
             console.error('Proje seçilirken hata:', err);
-            throw err;
+            return false;
         } finally {
             loading.value = false;
         }
@@ -75,11 +130,13 @@ export const useProjectStore = defineStore('project', () => {
     const loadSavedProject = async () => {
         const savedProjectId = localStorage.getItem('currentProjectId');
         if (savedProjectId) {
+            activeProjectId.value = savedProjectId;
             try {
                 await setCurrentProject(savedProjectId);
                 return true;
             } catch {
                 localStorage.removeItem('currentProjectId');
+                activeProjectId.value = null;
                 return false;
             }
         }
@@ -94,11 +151,10 @@ export const useProjectStore = defineStore('project', () => {
     // Proje seçim modalını kapat
     const closeProjectSelectorModal = () => {
         showProjectSelectorModal.value = false;
-    };
-
-    return {
+    };    return {
         projects,
         currentProject,
+        activeProjectId,
         loading,
         error,
         showProjectSelectorModal,
@@ -106,6 +162,7 @@ export const useProjectStore = defineStore('project', () => {
         setCurrentProject,
         loadSavedProject,
         openProjectSelectorModal,
-        closeProjectSelectorModal
+        closeProjectSelectorModal,
+        addDefaultProjects
     };
 });

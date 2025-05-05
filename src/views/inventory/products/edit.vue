@@ -125,9 +125,7 @@
                             v-model="formData.minStockLevel"
                             min="0"
                         />
-                    </div>
-
-                    <!-- Toplam Stok (Sadece Gösterim) -->
+                    </div>                    <!-- Toplam Stok (Sadece Gösterim) -->
                     <div class="mb-4">
                         <label for="totalStock">Toplam Stok</label>
                         <input
@@ -138,6 +136,37 @@
                             disabled
                         />
                         <p class="text-xs text-gray-500 mt-1">Stok hareketleriyle güncellenir</p>
+                    </div>
+
+                    <!-- Seri Numarası Takibi -->
+                    <div class="mb-4">
+                        <label class="flex items-center">
+                            <input type="checkbox" class="form-checkbox" v-model="formData.hasSerialization" />
+                            <span class="ml-2">Seri Numarası İle Takip Et</span>
+                        </label>
+                        <p class="text-xs text-gray-500 mt-1">Ürünleri benzersiz seri numarası ile takip etmek için işaretleyin</p>
+                    </div>
+
+                    <!-- Seri Numarası Zorunlu -->
+                    <div class="mb-4" v-if="formData.hasSerialization">
+                        <label class="flex items-center">
+                            <input type="checkbox" class="form-checkbox" v-model="formData.requireSerialNumber" />
+                            <span class="ml-2">Seri Numarası Zorunlu</span>
+                        </label>
+                        <p class="text-xs text-gray-500 mt-1">İşaretlenirse, stok girişinde seri numarası girişi zorunlu olacaktır</p>
+                    </div>
+
+                    <!-- Seri Numarası Ön Eki -->
+                    <div class="mb-4" v-if="formData.hasSerialization">
+                        <label for="serialNumberPrefix">Seri Numarası Ön Eki</label>
+                        <input
+                            id="serialNumberPrefix"
+                            type="text"
+                            class="form-input"
+                            v-model="formData.serialNumberPrefix"
+                            placeholder="Örn: KMR-"
+                        />
+                        <p class="text-xs text-gray-500 mt-1">Otomatik seri numarası oluşturmada kullanılacak ön ek</p>
                     </div>
 
                     <!-- Durum -->
@@ -249,7 +278,10 @@ const formData = ref({
     minStockLevel: 0,
     totalStock: 0,
     description: '',
-    isActive: true
+    isActive: true,
+    hasSerialization: false,
+    requireSerialNumber: false,
+    serialNumberPrefix: ''
 });
 
 // Store'dan veri getirme
@@ -300,8 +332,7 @@ const loadProduct = async (productId: string) => {
                 router.push('/inventory/products');
             }, 2000);
             return;
-        }
-          formData.value = { 
+        }        formData.value = { 
             id: product.id,
             code: product.code,
             name: product.name,
@@ -312,7 +343,10 @@ const loadProduct = async (productId: string) => {
             minStockLevel: product.minStockLevel,
             totalStock: product.totalStock || 0,
             description: product.description || '',
-            isActive: product.isActive
+            isActive: product.isActive,
+            hasSerialization: product.hasSerialization || false,
+            requireSerialNumber: product.requireSerialNumber || false,
+            serialNumberPrefix: product.serialNumberPrefix || ''
         };
 
         // Ürün yüklendiğinde alt kategorileri de güncelle
@@ -387,8 +421,7 @@ const handleSubmit = async () => {
     }
 
     submitting.value = true;
-    try {
-        const updatedProduct = {
+    try {        const updatedProduct = {
             code: formData.value.code,
             name: formData.value.name,
             categoryId: formData.value.categoryId,
@@ -397,7 +430,10 @@ const handleSubmit = async () => {
             stockNumber: formData.value.stockNumber,
             minStockLevel: formData.value.minStockLevel,
             description: formData.value.description,
-            isActive: formData.value.isActive
+            isActive: formData.value.isActive,
+            hasSerialization: formData.value.hasSerialization,
+            requireSerialNumber: formData.value.requireSerialNumber,
+            serialNumberPrefix: formData.value.serialNumberPrefix
         };
         
         // Store'da ürünü güncelle - await ile bekleyerek işlemin tamamlanmasını sağla

@@ -171,7 +171,7 @@ export const useAuthStore = defineStore('auth', {
             // Varolan bir listener varsa önce temizle
             this.cleanupAuthListener();
             
-            this.authReady = true; // Auth state'ini hazır olarak işaretle
+            // Auth state'ini hazır olarak işaretle
             
             // Firebase auth state değişikliklerini dinle ve temizlik fonksiyonunu tut
             this.authUnsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -324,11 +324,13 @@ export const useAuthStore = defineStore('auth', {
                 this.isLoggedIn = false;
                 this.userInfo = null;
                 this.resetProjectData();
-                
-                // localStorage'dan oturum bilgilerini temizle
+                  // localStorage'dan oturum bilgilerini temizle
                 localStorage.removeItem('user');
                 localStorage.removeItem('token');
                 localStorage.removeItem('currentProject');
+                
+                // sessionStorage'dan proje seçimini temizle
+                sessionStorage.removeItem('activeProjectId');
             } catch (error) {
                 console.error('Logout error:', error);
                 throw error;

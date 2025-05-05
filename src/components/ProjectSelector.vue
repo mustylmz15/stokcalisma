@@ -136,9 +136,7 @@ onMounted(async () => {
 
     try {
         // Kullanıcı projelerini yüklerken isProjectsLoading değerini aktif et
-        isProjectsLoading.value = true;
-        
-        if (!projectStore.isInitialized) {
+        isProjectsLoading.value = true;        if (!projectStore.isInitialized) {
             // Sadece initializeStore çağırarak projeleri yükle
             // (loadUserProjects zaten initializeStore içinde çağrılıyor)
             await projectStore.initializeStore();
@@ -146,6 +144,20 @@ onMounted(async () => {
             // Eğer store zaten başlatılmışsa, projeleri yenilemek için loadUserProjects çağır
             await projectStore.loadUserProjects();
         }
+        
+        // Burada da aktif projeyi doğrudan null yaparak her durumda tüm projelerin seçili olmasını sağla
+        projectStore.activeProject = null;
+        
+        // Her durumda tüm projeleri seçili yap
+        await selectAllProjects();
+        console.log('ProjectSelector: Tüm projeler ZORLA seçili olarak ayarlandı');
+        
+        // İlave güvenlik - 100ms gecikme ile tekrar tüm projeleri seçili yap
+        setTimeout(() => {
+            projectStore.activeProject = null;
+            console.log('ProjectSelector: 100ms sonra tekrar null kontrol');
+        }, 100);
+        
     } catch (error) {
         console.error('Projeler yüklenirken hata oluştu:', error);
     } finally {
@@ -165,12 +177,16 @@ const selectAllProjects = async () => {
         // Projeyi değiştirirken loading yap
         isProjectsLoading.value = true;
         
-        // Aktif projeyi null olarak ayarla - clearActiveProject yerine doğrudan store'daki değeri değiştir
+        console.log('Tüm projeler ZORLA seçiliyor...');
+        
+        // Aktif projeyi null olarak ayarla - doğrudan değiştir
         projectStore.activeProject = null;
+        
+        // Tüm depolama türlerinde projeyi temizle
         localStorage.removeItem('activeProjectId');
+        sessionStorage.removeItem('activeProjectId');
         
         // Envanter bilgilerini tüm projeleri gösterecek şekilde ayarla
-        // Burada inventory.js uzantısını düzgün şekilde import ettiğimizden emin olun
         const inventoryStore = useInventoryStore();
         await inventoryStore.setActiveProjectId(null);
         

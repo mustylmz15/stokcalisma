@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import { doc, collection, getDocs, getDoc, setDoc, updateDoc, deleteDoc, query, where, Timestamp, orderBy } from 'firebase/firestore';
 import { db } from '@/firebase';
 import { useAuthStore } from './auth-store';
+import serializedInventoryService from '@/services/serializedInventoryService';
 
 // Arızalı ürün kayıt tipi tanımı
 export interface FaultyProductRecord {
@@ -186,14 +187,56 @@ export const useArizaStore = defineStore('ariza', () => {
         } finally {
             loading.value = false;
         }
-    }
-    
-    // Yeni arızalı ürün kaydı ekle
+    }    // Yeni arızalı ürün kaydı ekle
     async function addFaultyProduct(product: Omit<FaultyProductRecord, 'id' | 'createdAt' | 'createdBy'>) {
         loading.value = true;
         error.value = null;
         
         try {
+            // Seri numarası ve gönderen depo kontrolü - BU KOD ZORUNLU KONTROL YAPAR!
+            if (!product.serialNumber || !product.senderWarehouseId) {
+                console.error('Arızalı ürün kaydında seri numarası veya depo bilgisi eksik');
+                error.value = 'Seri numarası ve gönderen depo gereklidir';
+                return false;
+            }
+            
+            console.log('STORE: Arıza kaydı oluşturulmadan önce seri numarası kontrolü yapılıyor', product.serialNumber);
+            
+            // SERİ NUMARASI KONTROLÜ - MUTLAKA YAPILMALIDIR!
+            try {
+                // SerializedInventoryService API'sini kullanarak seri numarası kontrolü
+                const serialCheck = await serializedInventoryService.checkSerialNumberInWarehouse(
+                    product.serialNumber, 
+                    product.senderWarehouseId
+                );
+                
+                console.log('STORE: Seri numarası kontrol sonucu:', serialCheck);
+                
+                // Eğer seri numarası hiç yoksa
+                if (!serialCheck || serialCheck?.notInSystem) {
+                    const errorMsg = serialCheck?.message || `"${product.serialNumber}" seri numarası sistemde kayıtlı değil!`;
+                    console.error('STORE HATA: Arızalı ürün kaydı reddedildi - Seri numarası sistemde yok:', errorMsg);
+                    error.value = errorMsg;
+                    return false;
+                }
+                
+                // Eğer seri numarası var ama seçilen depoda değilse
+                if (!serialCheck.exists) {
+                    const errorMsg = serialCheck.message || `Seri numaralı ürün seçilen depoda bulunmuyor.`;
+                    console.error('STORE HATA: Arızalı ürün kaydı reddedildi - Seri numarası yanlış depoda:', errorMsg);
+                    error.value = errorMsg;
+                    return false;
+                }
+                
+                // Bu noktada, seri numarası kontrolünü geçti
+                console.log('STORE: Seri numarası kontrolü başarılı, arızalı ürün kaydı oluşturuluyor...');
+                
+            } catch (validationError) {
+                console.error('STORE HATA: Seri numarası doğrulama hatası:', validationError);
+                error.value = 'Seri numarası doğrulama sırasında bir hata oluştu: ' + ((validationError as Error)?.message || 'Bilinmeyen hata');
+                return false;
+            }
+            
             const faultyProductsRef = collection(db, 'faultyProducts');
               const newProduct: Omit<FaultyProductRecord, 'id'> = {
                 ...product,
@@ -294,13 +337,49 @@ export const useArizaStore = defineStore('ariza', () => {
         }
     }
     
-    // Tüm verileri başlangıçta yükle
+    // Yeni servis merkezi ekle
+    async function addServiceCenter(serviceCenter: Omit<ServiceCenter, 'id' | 'createdAt' | 'createdBy'>) {
+        loading.value = true;
+        error.value = null;
+        
+        try {
+            const serviceCentersRef = collection(db, 'serviceCenters');
+            const newServiceCenter: Omit<ServiceCenter, 'id'> = {
+                ...serviceCenter,
+                createdBy: authStore.userInfo?.id || '',
+                createdAt: Timestamp.now(),
+            };
+            
+            await setDoc(doc(serviceCentersRef), newServiceCenter);
+            
+            // Yerel state'i güncelle
+            await fetchServiceCenters();
+            
+            return true;
+        } catch (err) {
+            console.error('Error adding service center:', err);
+            error.value = 'Servis merkezi eklenirken bir hata oluştu';
+            return false;
+        } finally {
+            loading.value = false;
+        }
+    }
+    
+    // Tüm verileri başlatmak için kullanılan fonksiyon
     async function initializeStore() {
-        await Promise.all([
-            fetchFaultyProducts(),
-            fetchServiceCenters(),
-            fetchFaultTypes()
-        ]);
+        try {
+            // Tüm gereken verileri paralel olarak yükle
+            await Promise.all([
+                fetchFaultyProducts(),
+                fetchServiceCenters(),
+                fetchFaultTypes()
+            ]);
+            
+            return true;
+        } catch (error) {
+            console.error('Arıza store verilerini başlatırken hata:', error);
+            return false;
+        }
     }
     
     return {
@@ -326,6 +405,7 @@ export const useArizaStore = defineStore('ariza', () => {
         updateFaultyProduct,
         deleteFaultyProduct,
         updateStatus,
+        addServiceCenter,
         initializeStore
     };
 });

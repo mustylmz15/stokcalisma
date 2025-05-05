@@ -46,6 +46,8 @@ app.use(Toast, {
 
 // Pinia kurulumu
 const pinia = createPinia();
+
+// Persistedstate eklentisini sadece belirli store'lar için aktifleştir
 pinia.use(piniaPluginPersistedstate);
 app.use(pinia);
 

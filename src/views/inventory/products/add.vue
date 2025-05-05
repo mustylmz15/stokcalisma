@@ -94,9 +94,7 @@
                             <option value="paket">Paket</option>
                         </select>
                         <p v-if="formErrors.unit" class="text-red-500 text-xs mt-1">{{ formErrors.unit }}</p>
-                    </div>
-
-                    <!-- Stok Numarası -->
+                    </div>                    <!-- Stok Numarası -->
                     <div class="mb-4">
                         <label for="stockNumber">Stok Numarası</label>
                         <input
@@ -106,6 +104,49 @@
                             v-model="formData.stockNumber"
                             placeholder="Stok numarası giriniz"
                         />
+                    </div>
+
+                    <!-- Minimum Stok Seviyesi -->
+                    <div class="mb-4">
+                        <label for="minStockLevel">Minimum Stok Seviyesi</label>
+                        <input
+                            id="minStockLevel"
+                            type="number"
+                            class="form-input"
+                            v-model="formData.minStockLevel"
+                            min="0"
+                        />
+                    </div>
+
+                    <!-- Seri Numarası Takibi -->
+                    <div class="mb-4">
+                        <label class="flex items-center">
+                            <input type="checkbox" class="form-checkbox" v-model="formData.hasSerialization" />
+                            <span class="ml-2">Seri Numarası İle Takip Et</span>
+                        </label>
+                        <p class="text-xs text-gray-500 mt-1">Ürünleri benzersiz seri numarası ile takip etmek için işaretleyin</p>
+                    </div>
+
+                    <!-- Seri Numarası Zorunlu -->
+                    <div class="mb-4" v-if="formData.hasSerialization">
+                        <label class="flex items-center">
+                            <input type="checkbox" class="form-checkbox" v-model="formData.requireSerialNumber" />
+                            <span class="ml-2">Seri Numarası Zorunlu</span>
+                        </label>
+                        <p class="text-xs text-gray-500 mt-1">İşaretlenirse, stok girişinde seri numarası girişi zorunlu olacaktır</p>
+                    </div>
+
+                    <!-- Seri Numarası Ön Eki -->
+                    <div class="mb-4" v-if="formData.hasSerialization">
+                        <label for="serialNumberPrefix">Seri Numarası Ön Eki</label>
+                        <input
+                            id="serialNumberPrefix"
+                            type="text"
+                            class="form-input"
+                            v-model="formData.serialNumberPrefix"
+                            placeholder="Örn: KMR-"
+                        />
+                        <p class="text-xs text-gray-500 mt-1">Otomatik seri numarası oluşturmada kullanılacak ön ek</p>
                     </div>
 
                     <!-- Açıklama -->
@@ -196,7 +237,10 @@ const formData = ref({
     stockNumber: '',
     minStockLevel: 0,
     description: '',
-    isActive: true
+    isActive: true,
+    hasSerialization: false,        // Seri numarası ile takip edilecek mi?
+    requireSerialNumber: false,     // Seri numarası girişi zorunlu mu?
+    serialNumberPrefix: ''          // Seri numarası ön eki
 });
 
 const formErrors = ref<FormErrors>({});
@@ -294,7 +338,10 @@ const resetForm = () => {
         stockNumber: '',
         minStockLevel: 0,
         description: '',
-        isActive: true
+        isActive: true,
+        hasSerialization: false,
+        requireSerialNumber: false,
+        serialNumberPrefix: ''
     };
     formErrors.value = {};
     availableSubCategories.value = [];
@@ -319,9 +366,7 @@ const closeNotification = () => {
 const handleSubmit = async () => {
     if (!validateForm()) {
         return;
-    }
-
-    submitting.value = true;
+    }    submitting.value = true;
     try {
         // Store'da yeni ürün oluştur
         await inventoryStore.addProduct({
@@ -335,6 +380,9 @@ const handleSubmit = async () => {
             description: formData.value.description,
             isActive: formData.value.isActive,
             category: categories.value.find(c => c.id === formData.value.categoryId)?.name || '',
+            hasSerialization: formData.value.hasSerialization,
+            requireSerialNumber: formData.value.requireSerialNumber,
+            serialNumberPrefix: formData.value.serialNumberPrefix,
             unitPrice: 0 // Birim fiyat gerekli olduğu için 0 olarak eklendi
         });
         

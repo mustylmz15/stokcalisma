@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { r      // Actions
+    // initializeStore fonksiyonunu güncelliyoruz - belirli projeleri yüklemek için parametre eklendi
+    async function initializeStore(projectIds?: string[]) { computed } from 'vue';
 interface ProjectService {
     getAllProjects(): Promise<Project[]>;
     getUserProjects(userId: string): Promise<Project[]>;
@@ -57,7 +59,8 @@ export const useProjectStore = defineStore('projects', () => {
         loading.value = true;
         error.value = null;
         
-        try {            // Eğer belirli proje ID'leri verildiyse, onları kullan
+        try {
+            // Eğer belirli proje ID'leri verildiyse, onları kullan
             if (projectIds && projectIds.length > 0) {
                 console.log(`Belirli projeler yükleniyor: ${projectIds.length} adet`);
                 await loadSpecificProjects(projectIds);
@@ -67,9 +70,10 @@ export const useProjectStore = defineStore('projects', () => {
                 await loadUserProjects();
             }
             
-            // Her zaman tüm projeler seçili olsun - ilk projeyi seçme ENGELLENECEK
-            activeProject.value = null; // Doğrudan activeProject'i boşalt
-            console.log('Tüm projeler seçili olarak ayarlandı (ZORLA)');
+            // Eğer aktif proje yoksa ve en az bir proje varsa, ilk projeyi aktif yap
+            if (!activeProject.value && projects.value.length > 0) {
+                setActiveProject(projects.value[0].id);
+            }
             
             isInitialized.value = true;
         } catch (err: any) {
@@ -170,14 +174,14 @@ export const useProjectStore = defineStore('projects', () => {
         loading.value = true;
         error.value = null;
         
-        try {            const newProject = await projectService.addProject(projectData);
+        try {
+            const newProject = await projectService.addProject(projectData);
             projects.value.push(newProject);
             
-            // İlk proje eklendiğinde bile tüm projeler seçeneğini bozma
-            // Artık ilk proje otomatik seçilmeyecek
-            // if (projects.value.length === 1) {
-            //     setActiveProject(newProject.id);
-            // }
+            // Eğer ilk proje ise, aktif proje olarak ayarla
+            if (projects.value.length === 1) {
+                setActiveProject(newProject.id);
+            }
             
             return newProject;
         } catch (err: any) {
@@ -416,12 +420,14 @@ export const useProjectStore = defineStore('projects', () => {
         error.value = null;
         isInitialized.value = false;
         localStorage.removeItem('activeProjectId');
-    }    // Store'u başlat
+    }
+    
+    // Store'u başlat
     function initFromLocalStorage() {
-        // Her durumda tüm projeleri seç, localStorage'ı tamamen yoksay
-        activeProject.value = null;
-        localStorage.removeItem('activeProjectId');
-        console.log('initFromLocalStorage: Tüm projeler seçeneği ZORLA aktif edildi');
+        const savedProjectId = localStorage.getItem('activeProjectId');
+        if (savedProjectId) {
+            setActiveProject(savedProjectId);
+        }
     }
     
     // Oturum açıldığında store'u başlat

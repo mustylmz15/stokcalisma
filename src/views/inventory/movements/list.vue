@@ -514,7 +514,7 @@ const loadMovements = async () => {
                 manager: '',
                 isActive: true
             };
-            let hedefDepo = undefined;
+            let hedefDepo: Depo | undefined = undefined;
             if ((m.type === 'transfer' || m.type === 'stock_add') && m.targetWarehouseId) {
                 hedefDepo = depolar.value.find(d => d.id === m.targetWarehouseId) || {
                     id: m.targetWarehouseId || '',
