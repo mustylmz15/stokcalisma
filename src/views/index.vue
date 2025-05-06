@@ -2,11 +2,9 @@
     <div>
         <ul class="flex space-x-2 rtl:space-x-reverse">
             <li>
-                <a href="javascript:;" class="text-primary hover:underline">Dashboard</a>
+                <a href="javascript:;" class="text-primary hover:underline">Anasayfa</a>
             </li>
-            <li class="before:content-['/'] ltr:before:mr-2 rtl:before:ml-2">
-                <span>Sales</span>
-            </li>
+            
         </ul>
 
         <div class="pt-5">
@@ -1657,7 +1655,7 @@ const totalCategories = computed(() => {
             fourteenDaysAgo.setDate(today.getDate() - 14);
             
             // Son 7 günün tarihleri
-            const last7Days = [];
+            const last7Days: Date[] = [];
             for (let i = 6; i >= 0; i--) {
                 const date = new Date();
                 date.setDate(today.getDate() - i);
@@ -1685,10 +1683,16 @@ const totalCategories = computed(() => {
             // Her bir arızalı ürün kaydı için
             filteredProducts.forEach(product => {
                 try {
-                    // Gönderim tarihini alalım
-                    const sendDate = product.sendDate instanceof Date 
-                        ? product.sendDate 
-                        : product.sendDate.toDate();
+                    // Gönderim tarihini alalım - açık tür tanımlaması ile
+                    let sendDate: Date;
+                    
+                    if (product.sendDate instanceof Date) {
+                        sendDate = product.sendDate;
+                    } else if (product.sendDate && typeof product.sendDate.toDate === 'function') {
+                        sendDate = product.sendDate.toDate();
+                    } else {
+                        return; // Geçerli bir tarih değilse bu kaydı atla
+                    }
                     
                     sendDate.setHours(0, 0, 0, 0); // Saat, dakika ve saniyeyi sıfırla (sadece gün kısmıyla karşılaştırmak için)
                     

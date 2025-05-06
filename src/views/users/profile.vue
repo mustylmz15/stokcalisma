@@ -2,10 +2,10 @@
     <div>
         <ul class="flex space-x-2 rtl:space-x-reverse">
             <li>
-                <a href="javascript:;" class="text-primary hover:underline">Users</a>
+                <a href="javascript:;" class="text-primary hover:underline">Kullanıcılar</a>
             </li>
             <li class="before:content-['/'] ltr:before:mr-2 rtl:before:ml-2">
-                <span>Profile</span>
+                <span>Profil</span>
             </li>
         </ul>
         <div class="pt-5">
@@ -39,7 +39,7 @@
             <div class="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-5 mb-5">
                 <div class="panel">
                     <div class="flex items-center justify-between mb-5">
-                        <h5 class="font-semibold text-lg dark:text-white-light">Profile</h5>
+                        <h5 class="font-semibold text-lg dark:text-white-light">Profil</h5>
                         <router-link to="/users/user-account-settings" class="ltr:ml-auto rtl:mr-auto btn btn-primary p-2 rounded-full">
                             <icon-pencil-paper />
                         </router-link>
@@ -56,16 +56,16 @@
                                     Admin Kullanıcısı
                                 </span>
                                 <span  v-else-if="authStore.userInfo?.role === 'user'">
-                                    {{ authorizedDepotName }} Sorumlusu
+                                    {{ authorizedDepotName }}.Bölge Depo Sorumlusu
                                 </span>
                                 <span  v-else="authStore.userInfo?.role === 'observer'">
-                                    Gözlemci
+                                    {{ authorizedDepotName }}.Bölge Gözlemci
                                 </span>
                             </li>
                             <li class="flex items-center gap-2">
                                 <icon-calendar class="shrink-0" />
                                 <span  v-if="authStore.userInfo?.role === 'user'">
-                                    <b>{{ authorizedDepotName }}</b>
+                                    <b>{{ authorizedDepotName }}. bölge</b>
                                 </span> 
                                 <span  v-else-if="authStore.userInfo?.role === 'admin'">
                                     {{ authorizedDepotName }}
@@ -77,7 +77,21 @@
                             </li>
                             <li class="flex items-center gap-2">
                                 <icon-map-pin class="shrink-0" />
-                                Bağlı Olduğu Proje
+                                <div class="flex flex-wrap gap-1">
+                                    <span v-if="projectDetails && projectDetails.length > 0">
+                                        <span
+                                            v-for="project in projectDetails"
+                                            :key="project.id"
+                                            :class="`text-${project.color || 'primary'}`"
+                                        >
+                                            {{ project.name }}{{ projectDetails.indexOf(project) < projectDetails.length - 1 ? ',' : '' }}
+                                        </span>
+                                    </span>
+                                    <span v-else-if="userProjects && userProjects.length > 0">
+                                        {{ userProjects.join(', ') }}
+                                    </span>
+                                    <span v-else>Proje atanmamış</span>
+                                </div>
                             </li>
                             <li>
                                 <a href="javascript:;" class="flex items-center gap-1">
@@ -95,90 +109,80 @@
                 </div>
                 <div class="panel lg:col-span-2 xl:col-span-3">
                     <div class="mb-5">
-                        <h5 class="font-semibold text-lg dark:text-white-light">Task</h5>
+                        <h5 class="font-semibold text-lg dark:text-white-light">Kullanıcı Bilgileri</h5>
                     </div>
                     <div class="mb-5">
                         <div class="table-responsive text-[#515365] dark:text-white-light font-semibold">
                             <table class="whitespace-nowrap">
                                 <thead>
                                     <tr>
-                                        <th>Projects</th>
-                                        <th>Progress</th>
-                                        <th>Task Done</th>
-                                        <th class="text-center">Time</th>
+                                        <th>Bilgi</th>
+                                        <th>Değer</th>
                                     </tr>
                                 </thead>
                                 <tbody class="dark:text-white-dark">
                                     <tr>
-                                        <td>Figma Design</td>
-                                        <td>
-                                            <div class="h-1.5 bg-[#ebedf2] dark:bg-dark/40 rounded-full flex w-full">
-                                                <div class="bg-danger rounded-full w-[29.56%]"></div>
-                                            </div>
-                                        </td>
-                                        <td class="text-danger">29.56%</td>
-                                        <td class="text-center">2 mins ago</td>
+                                        <td>İsim Soyisim</td>
+                                        <td>{{ authStore.userInfo?.name || '-' }}</td>
                                     </tr>
                                     <tr>
-                                        <td>Vue Migration</td>
+                                        <td>Bağlı Olduğu Projeler</td>
                                         <td>
-                                            <div class="h-1.5 bg-[#ebedf2] dark:bg-dark/40 rounded-full flex w-full">
-                                                <div class="bg-info rounded-full w-1/2"></div>
+                                            <div v-if="projectDetails && projectDetails.length > 0" class="flex flex-wrap gap-2">
+                                                <span
+                                                    v-for="project in projectDetails"
+                                                    :key="project.id"
+                                                    :class="`badge badge-outline-${project.color || 'primary'}`"
+                                                    :title="project.description || 'Açıklama yok'"
+                                                >
+                                                    {{ project.name }}
+                                                </span>
                                             </div>
+                                            <div v-else-if="userProjects && userProjects.length > 0" class="flex flex-wrap gap-2">
+                                                <span
+                                                    v-for="(projectName, index) in userProjects"
+                                                    :key="index"
+                                                    class="badge badge-outline-primary"
+                                                >
+                                                    {{ projectName }}
+                                                </span>
+                                            </div>
+                                            <div v-else>Henüz proje atanmamış</div>
                                         </td>
-                                        <td class="text-success">50%</td>
-                                        <td class="text-center">4 hrs ago</td>
                                     </tr>
                                     <tr>
-                                        <td>Flutter App</td>
+                                        <td>Bağlı Olduğu Depo</td>
                                         <td>
-                                            <div class="h-1.5 bg-[#ebedf2] dark:bg-dark/40 rounded-full flex w-full">
-                                                <div class="bg-warning rounded-full w-[39%]"></div>
-                                            </div>
+                                            <span v-if="authStore.userInfo?.role === 'admin'">
+                                                Admin Kullanıcısı
+                                            </span>
+                                            <span v-else>
+                                                {{ authorizedDepotName }}. Bölge
+                                            </span>
                                         </td>
-                                        <td class="text-danger">39%</td>
-                                        <td class="text-center">a min ago</td>
                                     </tr>
                                     <tr>
-                                        <td>API Integration</td>
+                                        <td>E-posta Adresi</td>
                                         <td>
-                                            <div class="h-1.5 bg-[#ebedf2] dark:bg-dark/40 rounded-full flex w-full">
-                                                <div class="bg-success rounded-full w-[78.03%]"></div>
-                                            </div>
+                                            <a href="mailto:{{ authStore.userInfo?.email }}" class="text-primary">{{ authStore.userInfo?.email || '-' }}</a>
                                         </td>
-                                        <td class="text-success">78.03%</td>
-                                        <td class="text-center">2 weeks ago</td>
-                                    </tr>
-
-                                    <tr>
-                                        <td>Blog Update</td>
-                                        <td>
-                                            <div class="h-1.5 bg-[#ebedf2] dark:bg-dark/40 rounded-full flex w-full">
-                                                <div class="bg-secondary rounded-full w-full"></div>
-                                            </div>
-                                        </td>
-                                        <td class="text-success">100%</td>
-                                        <td class="text-center">18 hrs ago</td>
                                     </tr>
                                     <tr>
-                                        <td>Landing Page</td>
-                                        <td>
-                                            <div class="h-1.5 bg-[#ebedf2] dark:bg-dark/40 rounded-full flex w-full">
-                                                <div class="bg-danger rounded-full w-[19.15%]"></div>
-                                            </div>
-                                        </td>
-                                        <td class="text-danger">19.15%</td>
-                                        <td class="text-center">5 days ago</td>
+                                        <td>Telefon</td>
+                                        <td>{{ authStore.userInfo?.phone || '-' }}</td>
                                     </tr>
                                     <tr>
-                                        <td>Shopify Dev</td>
+                                        <td>Kullanıcı Rolü</td>
                                         <td>
-                                            <div class="h-1.5 bg-[#ebedf2] dark:bg-dark/40 rounded-full flex w-full">
-                                                <div class="bg-primary rounded-full w-[60.55%]"></div>
-                                            </div>
+                                            <span v-if="authStore.userInfo?.role === 'admin'" class="badge badge-outline-primary">Admin</span>
+                                            <span v-else-if="authStore.userInfo?.role === 'user'" class="badge badge-outline-info">Depo Sorumlusu</span>
+                                            <span v-else-if="authStore.userInfo?.role === 'observer'" class="badge badge-outline-secondary">Gözlemci</span>
+                                            <span v-else class="badge badge-outline-dark">{{ authStore.userInfo?.role }}</span>
                                         </td>
-                                        <td class="text-success">60.55%</td>
-                                        <td class="text-center">8 days ago</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Son Giriş</td>
+                                        <td>{{ formatDate(authStore.userInfo?.lastLogin) }}</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -186,213 +190,7 @@
                     </div>
                 </div>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div class="panel">
-                    <div class="mb-5">
-                        <h5 class="font-semibold text-lg dark:text-white-light">Summary</h5>
-                    </div>
-                    <div class="space-y-4">
-                        <div class="border border-[#ebedf2] rounded dark:bg-[#1b2e4b] dark:border-0">
-                            <div class="flex items-center justify-between p-4 py-2">
-                                <div
-                                    class="grid place-content-center w-9 h-9 rounded-md bg-secondary-light dark:bg-secondary text-secondary dark:text-secondary-light shrink-0"
-                                >
-                                    <icon-shopping-bag />
-                                </div>
-                                <div class="ltr:ml-4 rtl:mr-4 flex items-start justify-between flex-auto font-semibold">
-                                    <h6 class="text-white-dark text-[13px] dark:text-white-dark">
-                                        Income <span class="block text-base text-[#515365] dark:text-white-light">$92,600</span>
-                                    </h6>
-                                    <p class="ltr:ml-auto rtl:mr-auto text-secondary">90%</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="border border-[#ebedf2] rounded dark:bg-[#1b2e4b] dark:border-0">
-                            <div class="flex items-center justify-between p-4 py-2">
-                                <div class="grid place-content-center w-9 h-9 rounded-md bg-info-light dark:bg-info text-info dark:text-info-light shrink-0">
-                                    <icon-tag />
-                                </div>
-                                <div class="ltr:ml-4 rtl:mr-4 flex items-start justify-between flex-auto font-semibold">
-                                    <h6 class="text-white-dark text-[13px] dark:text-white-dark">
-                                        Profit <span class="block text-base text-[#515365] dark:text-white-light">$37,515</span>
-                                    </h6>
-                                    <p class="ltr:ml-auto rtl:mr-auto text-info">65%</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="border border-[#ebedf2] rounded dark:bg-[#1b2e4b] dark:border-0">
-                            <div class="flex items-center justify-between p-4 py-2">
-                                <div
-                                    class="grid place-content-center w-9 h-9 rounded-md bg-warning-light dark:bg-warning text-warning dark:text-warning-light shrink-0"
-                                >
-                                    <icon-credit-card />
-                                </div>
-                                <div class="ltr:ml-4 rtl:mr-4 flex items-start justify-between flex-auto font-semibold">
-                                    <h6 class="text-white-dark text-[13px] dark:text-white-dark">
-                                        Expenses <span class="block text-base text-[#515365] dark:text-white-light">$55,085</span>
-                                    </h6>
-                                    <p class="ltr:ml-auto rtl:mr-auto text-warning">80%</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="panel">
-                    <div class="flex items-center justify-between mb-10">
-                        <h5 class="font-semibold text-lg dark:text-white-light">Pro Plan</h5>
-                        <a href="javascript:;" class="btn btn-primary">Renew Now</a>
-                    </div>
-                    <div class="group">
-                        <ul class="list-inside list-disc text-white-dark font-semibold mb-7 space-y-2">
-                            <li>10,000 Monthly Visitors</li>
-                            <li>Unlimited Reports</li>
-                            <li>2 Years Data Storage</li>
-                        </ul>
-                        <div class="flex items-center justify-between mb-4 font-semibold">
-                            <p class="flex items-center rounded-full bg-dark px-2 py-1 text-xs text-white-light font-semibold">
-                                <icon-clock class="w-3 h-3 ltr:mr-1 rtl:ml-1" />
-                                5 Days Left
-                            </p>
-                            <p class="text-info">$25 / month</p>
-                        </div>
-                        <div class="rounded-full h-2.5 p-0.5 bg-dark-light overflow-hidden mb-5 dark:bg-dark-light/10">
-                            <div class="bg-gradient-to-r from-[#f67062] to-[#fc5296] w-full h-full rounded-full relative" style="width: 65%"></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="panel">
-                    <div class="flex items-center justify-between mb-5">
-                        <h5 class="font-semibold text-lg dark:text-white-light">Payment History</h5>
-                    </div>
-                    <div>
-                        <div class="border-b border-[#ebedf2] dark:border-[#1b2e4b]">
-                            <div class="flex items-center justify-between py-2">
-                                <h6 class="text-[#515365] font-semibold dark:text-white-dark">
-                                    March<span class="block text-white-dark dark:text-white-light">Pro Membership</span>
-                                </h6>
-                                <div class="flex items-start justify-between ltr:ml-auto rtl:mr-auto">
-                                    <p class="font-semibold">90%</p>
-                                    <div class="dropdown ltr:ml-4 rtl:mr-4">
-                                        <Popper :placement="store.rtlClass === 'rtl' ? 'bottom-start' : 'bottom-end'" offsetDistance="0" class="align-middle">
-                                            <a href="javascript:;">
-                                                <icon-horizontal-dots class="opacity-80 hover:opacity-100" />
-                                            </a>
-                                            <template #content="{ close }">
-                                                <ul @click="close()" class="whitespace-nowrap">
-                                                    <li>
-                                                        <a href="javascript:;">View Invoice</a>
-                                                    </li>
-                                                    <li>
-                                                        <a href="javascript:;">Download Invoice</a>
-                                                    </li>
-                                                </ul>
-                                            </template>
-                                        </Popper>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="border-b border-[#ebedf2] dark:border-[#1b2e4b]">
-                            <div class="flex items-center justify-between py-2">
-                                <h6 class="text-[#515365] font-semibold dark:text-white-dark">
-                                    February <span class="block text-white-dark dark:text-white-light">Pro Membership</span>
-                                </h6>
-                                <div class="flex items-start justify-between ltr:ml-auto rtl:mr-auto">
-                                    <p class="font-semibold">90%</p>
-                                    <div class="dropdown ltr:ml-4 rtl:mr-4">
-                                        <Popper :placement="store.rtlClass === 'rtl' ? 'bottom-start' : 'bottom-end'" offsetDistance="0" class="align-middle">
-                                            <a href="javascript:;">
-                                                <icon-horizontal-dots class="opacity-80 hover:opacity-100" />
-                                            </a>
-                                            <template #content="{ close }">
-                                                <ul @click="close()" class="whitespace-nowrap">
-                                                    <li>
-                                                        <a href="javascript:;">View Invoice</a>
-                                                    </li>
-                                                    <li>
-                                                        <a href="javascript:;">Download Invoice</a>
-                                                    </li>
-                                                </ul>
-                                            </template>
-                                        </Popper>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div>
-                            <div class="flex items-center justify-between py-2">
-                                <h6 class="text-[#515365] font-semibold dark:text-white-dark">
-                                    January<span class="block text-white-dark dark:text-white-light">Pro Membership</span>
-                                </h6>
-                                <div class="flex items-start justify-between ltr:ml-auto rtl:mr-auto">
-                                    <p class="font-semibold">90%</p>
-                                    <div class="dropdown ltr:ml-4 rtl:mr-4">
-                                        <Popper :placement="store.rtlClass === 'rtl' ? 'bottom-start' : 'bottom-end'" offsetDistance="0" class="align-middle">
-                                            <a href="javascript:;">
-                                                <icon-horizontal-dots class="opacity-80 hover:opacity-100" />
-                                            </a>
-                                            <template #content="{ close }">
-                                                <ul @click="close()" class="whitespace-nowrap">
-                                                    <li>
-                                                        <a href="javascript:;">View Invoice</a>
-                                                    </li>
-                                                    <li>
-                                                        <a href="javascript:;">Download Invoice</a>
-                                                    </li>
-                                                </ul>
-                                            </template>
-                                        </Popper>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="panel">
-                    <div class="flex items-center justify-between mb-5">
-                        <h5 class="font-semibold text-lg dark:text-white-light">Card Details</h5>
-                    </div>
-                    <div>
-                        <div class="border-b border-[#ebedf2] dark:border-[#1b2e4b]">
-                            <div class="flex items-center justify-between py-2">
-                                <div class="flex-none">
-                                    <img src="/assets/images/card-americanexpress.svg" alt="" />
-                                </div>
-                                <div class="flex items-center justify-between flex-auto ltr:ml-4 rtl:mr-4">
-                                    <h6 class="text-[#515365] font-semibold dark:text-white-dark">
-                                        American Express <span class="block text-white-dark dark:text-white-light">Expires on 12/2025</span>
-                                    </h6>
-                                    <span class="badge bg-success ltr:ml-auto rtl:mr-auto">Primary</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="border-b border-[#ebedf2] dark:border-[#1b2e4b]">
-                            <div class="flex items-center justify-between py-2">
-                                <div class="flex-none">
-                                    <img src="/assets/images/card-mastercard.svg" alt="" />
-                                </div>
-                                <div class="flex items-center justify-between flex-auto ltr:ml-4 rtl:mr-4">
-                                    <h6 class="text-[#515365] font-semibold dark:text-white-dark">
-                                        Mastercard <span class="block text-white-dark dark:text-white-light">Expires on 03/2025</span>
-                                    </h6>
-                                </div>
-                            </div>
-                        </div>
-                        <div>
-                            <div class="flex items-center justify-between py-2">
-                                <div class="flex-none">
-                                    <img src="/assets/images/card-visa.svg" alt="" />
-                                </div>
-                                <div class="flex items-center justify-between flex-auto ltr:ml-4 rtl:mr-4">
-                                    <h6 class="text-[#515365] font-semibold dark:text-white-dark">
-                                        Visa <span class="block text-white-dark dark:text-white-light">Expires on 10/2025</span>
-                                    </h6>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+           
                     </TabPanel>
                     <TabPanel>
                         <div class="grid grid-cols-1 gap-5">
@@ -495,6 +293,8 @@
     import { useMeta } from '@/composables/use-meta';
     import { reactive, onMounted, ref, computed, onUnmounted } from 'vue';
     import {useInventoryStore} from '@/stores/inventory.js';
+    import { db } from '@/firebase';
+    import { doc, getDoc } from 'firebase/firestore';
 
     import IconPencilPaper from '@/components/icon/icon-pencil-paper.vue';
     import IconCoffee from '@/components/icon/icon-coffee.vue';
@@ -518,13 +318,116 @@
     // Depo koduna göre depo adını bulan fonksiyon
     const getWarehouseNameByCode = (code) => {
         if (!code) return 'Tanımsız';
-        const warehouse = inventoryStore.warehouses.find(w => w.code === code);
-        return warehouse ? warehouse.name : 'Tanımsız';
+        try {
+            console.log("Aranılan depo kodu:", code);
+            console.log("Mevcut tüm depolar:", inventoryStore.warehouses);
+            const warehouse = inventoryStore.warehouses.find(w => w.code === code);
+            console.log("Bulunan depo:", warehouse);
+            
+            if (warehouse) {
+                return warehouse.name;
+            }
+            
+            // Depoya direkt kod ile ulaşılamadıysa, depo ID'si olarak dene
+            const warehouseById = inventoryStore.warehouses.find(w => w.id === code);
+            if (warehouseById) {
+                return warehouseById.name;
+            }
+            
+            return code || 'Tanımsız'; // En kötü durumda kod değerini göster
+        } catch (error) {
+            console.error("Depo ismi bulunurken hata:", error);
+            return code || 'Tanımsız';
+        }
     };
     
     // Kullanıcının yetkili olduğu depo adını computed property olarak tanımlayalım
     const authorizedDepotName = computed(() => {
-        return getWarehouseNameByCode((authStore.userInfo as any)?.authorizedDepot);
+        const userInfo = authStore.userInfo as any;
+        if (!userInfo) return 'Tanımsız';
+        
+        // Kullanıcı verisindeki potansiyel depo alanlarını kontrol et
+        console.log("Kullanıcı depo bilgisi - authorizedDepot:", userInfo.authorizedDepot);
+        console.log("Kullanıcı depo bilgisi - depot:", userInfo.depot);
+        console.log("Kullanıcı depo bilgisi - warehouse:", userInfo.warehouse);
+        
+        // Depo değerini çeşitli alanlardan bulmayı dene
+        const depotCode = userInfo.authorizedDepot || userInfo.depot || userInfo.warehouse;
+        
+        return getWarehouseNameByCode(depotCode);
+    });
+    
+    // Proje verilerini insan okunabilir formata dönüştüren yardımcı fonksiyon
+    const formatProjects = (projectData: any): string[] => {
+        try {
+            if (!projectData) return [];
+            
+            // Eğer direkt string array ise, aynen göster
+            if (Array.isArray(projectData) && projectData.length > 0) {
+                return projectData.map(project => {
+                    // Eğer proje bir obje ise ve name özelliği varsa
+                    if (typeof project === 'object' && project !== null) {
+                        if (project.name) return project.name;
+                        if (project.id) return project.id;
+                    }
+                    
+                    // Eğer proje bir string ise aynen göster
+                    if (typeof project === 'string') {
+                        return project;
+                    }
+                    
+                    return 'Bilinmeyen Proje';
+                });
+            }
+            
+            // Proje bir obje ise
+            if (typeof projectData === 'object' && projectData !== null && !Array.isArray(projectData)) {
+                return Object.keys(projectData);
+            }
+            
+            return [fallbackProjectNames.default];
+        } catch (error) {
+            console.error('Proje formatlanırken hata:', error);
+            return ['Format hatası'];
+        }
+    };
+    
+    // Kullanıcı projeleri için computed property
+    const userProjects = computed(() => {
+        try {
+            // Firebase'den gelen proje detayları varsa onları kullan
+            if (projectDetails.value && projectDetails.value.length > 0) {
+                return projectDetails.value.map(project => project.name || project.id);
+            }
+            
+            // Firebase'den veri gelmezse yerel map'ten al
+            const user = authStore.userInfo;
+            if (!user) return ['Kullanıcı bilgisi yüklenemedi'];
+            
+            // Projeleri önce userInfo nesnesinden almayı dene
+            if ((user as any).projectIds && Array.isArray((user as any).projectIds)) {
+                // projectIds dizisini formatla
+                return formatProjects((user as any).projectIds);
+            }
+            
+            // projects dizisini kontrol et
+            if ((user as any).projects) {
+                // projects dizisini formatla
+                return formatProjects((user as any).projects);
+            }
+            
+            // Tek bir proje varsa kontrol et
+            if ((user as any).projectId) {
+                // projectId'yi formatla
+                return formatProjects([(user as any).projectId]);
+            }
+            
+            // hiçbir proje bilgisi bulunamazsa
+            return ['Genel Kullanıcı'];
+        } catch (error) {
+            console.error('Kullanıcı projeleri hesaplanırken hata:', error);
+            return ['Yüklenirken hata oluştu'];
+        }
     });
     
     
@@ -550,24 +453,231 @@
     
     const isSubmitting = ref(false);
     const unsubscribeRef = ref(null);
-
-    onMounted(() => {
-        if (authStore.userInfo) {
-            formData.name = authStore.userInfo.name || '';
-            formData.email = authStore.userInfo.email || '';
-            formData.role = authStore.userInfo.role || '';
-            formData.phone = authStore.userInfo.phone || '';
-            formData.warehouse = (authStore.userInfo as any).warehouse || '';
-            formData.avatar = authStore.userInfo.avatar || '';
-            formData.lastLogin = authStore.userInfo.lastLogin || '';
-            formData.permissionLevel = (authStore.userInfo as any).permissionLevel || '';
     
-            // Düzenlenebilir form verilerini de doldur
-            editableFormData.name = authStore.userInfo.name || '';
-            editableFormData.email = authStore.userInfo.email || '';
-            editableFormData.phone = authStore.userInfo.phone || '';
+    // Projeler için ref tanımlama
+    const projectDetails = ref<Array<{ 
+        id: string; 
+        name: string; 
+        description: string; 
+        color: string; 
+        isActive: boolean 
+    }>>([]);
+    
+    // Sadece fallback olarak bazı proje adlarını saklayalım (eğer projeler koleksiyonu okunamazsa)
+    const fallbackProjectNames = {
+        'default': 'Genel Kullanıcı'
+    };
+    
+    // Firebase'den proje detaylarını getiren fonksiyon
+    const getProjectDetails = async (projectIds: any[]): Promise<Array<{ 
+        id: string; 
+        name: string; 
+        description: string; 
+        color: string; 
+        isActive: boolean 
+    }>> => {
+        try {
+            if (!projectIds || !Array.isArray(projectIds) || projectIds.length === 0) {
+                return [];
+            }
+            
+            const details: Array<{ 
+                id: string; 
+                name: string; 
+                description: string; 
+                color: string; 
+                isActive: boolean 
+            }> = [];
+            
+            // Firebase'deki projects koleksiyonundan verileri çek
+            for (const pid of projectIds) {
+                let projectId = pid;
+                // Eğer object ise, id'sini kullan
+                if (typeof pid === 'object' && pid !== null) {
+                    projectId = pid.id || '';
+                }
+                
+                // Boş ID'leri işleme
+                if (!projectId) continue;
+                
+                try {
+                    const projectDoc = await getDoc(doc(db, 'projects', projectId));
+                    if (projectDoc.exists()) {
+                        const projectData = projectDoc.data();
+                        details.push({
+                            id: projectDoc.id,
+                            name: projectData.name || projectDoc.id, // Proje adı yoksa ID'sini göster
+                            description: projectData.description || '',
+                            color: projectData.color || 'primary',
+                            isActive: projectData.isActive !== false
+                        });
+                    } else {
+                        // Proje bulunamadıysa veya silinmişse, ID ile ekle
+                        details.push({
+                            id: projectId,
+                            name: projectId, // Sadece ID'sini göster
+                            description: 'Proje detayları bulunamadı',
+                            color: 'warning',
+                            isActive: true
+                        });
+                    }
+                } catch (error) {
+                    console.error(`Proje detayları alınırken hata (${projectId}):`, error);
+                }
+            }
+            
+            return details;
+        } catch (error) {
+            console.error('Proje detayları alınırken genel hata:', error);
+            return [];
+        }
+    };
+    
+    // Tarih formatlamak için yardımcı fonksiyon
+    const formatDate = (timestamp) => {
+        if (!timestamp) return '-';
+        
+        try {
+            // Firebase timestamp veya date objesi kontrolü
+            let date;
+            if (timestamp instanceof Date) {
+                date = timestamp;
+            } else if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+                date = timestamp.toDate();
+            } else if (timestamp.seconds) {
+                // Firebase timestamp objesi
+                date = new Date(timestamp.seconds * 1000);
+            } else {
+                // String veya number olarak tarih
+                date = new Date(timestamp);
+            }
+            
+            // Geçerli bir tarih kontrolü
+            if (isNaN(date.getTime())) {
+                return '-';
+            }
+            
+            // Türkçe tarih formatı: GG.AA.YYYY HH:MM
+            return date.toLocaleString('tr-TR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } catch (error) {
+            console.error('Tarih formatlanırken hata:', error);
+            return '-';
+        }
+    };
+
+    onMounted(async () => {
+        try {
+            // Kullanıcı bilgilerini loglayalım
+            if (authStore.userInfo) {
+                console.log("Kullanıcı bilgileri:", authStore.userInfo);
+                
+                formData.name = authStore.userInfo.name || '';
+                formData.email = authStore.userInfo.email || '';
+                formData.role = authStore.userInfo.role || '';
+                formData.phone = authStore.userInfo.phone || '';
+                formData.warehouse = (authStore.userInfo as any).warehouse || '';
+                formData.avatar = authStore.userInfo.avatar || '';
+                formData.lastLogin = authStore.userInfo.lastLogin || '';
+                formData.permissionLevel = (authStore.userInfo as any).permissionLevel || '';
+        
+                // Düzenlenebilir form verilerini de doldur
+                editableFormData.name = authStore.userInfo.name || '';
+                editableFormData.email = authStore.userInfo.email || '';
+                editableFormData.phone = authStore.userInfo.phone || '';
+                
+                // Mevcut depo listesini konsola yazdır
+                console.log("Mevcut depolar:", inventoryStore.warehouses);
+                
+                // Kullanıcı projelerini FireStore'dan getir
+                await loadUserProjects();
+            }
+        } catch (error) {
+            console.error("Profil sayfası yüklenirken hata:", error);
         }
     });
+    
+    // Kullanıcı projelerini yükleyen fonksiyon
+    const loadUserProjects = async (): Promise<void> => {
+        try {
+            // Kullanıcı bilgilerini al
+            const user = authStore.userInfo;
+            if (!user) return;
+            
+            // Kullanıcı verisinin tamamını loglayalım (debug için)
+            console.log("Kullanıcı verisi:", user);
+            
+            // Kullanıcı proje ID'lerini bul
+            let projectIds: any[] = [];
+            
+            // Farklı proje veri yapılarını kontrol et ve hepsini dene
+            if (Array.isArray((user as any).projectIds) && (user as any).projectIds.length > 0) {
+                projectIds = (user as any).projectIds;
+                console.log("projectIds alanından projeler bulundu:", projectIds);
+            } else if (Array.isArray((user as any).projects) && (user as any).projects.length > 0) {
+                projectIds = (user as any).projects;
+                console.log("projects dizisinden projeler bulundu:", projectIds);
+            } else if ((user as any).projects && typeof (user as any).projects === 'object') {
+                projectIds = Object.keys((user as any).projects);
+                console.log("projects objesinden projeler bulundu:", projectIds);
+            } else if ((user as any).projectId) {
+                projectIds = [(user as any).projectId];
+                console.log("projectId alanından proje bulundu:", projectIds);
+            }
+            
+            // Eğer yukarıdaki koşullar boş döndüyse, kullanıcı verisinde 'project' içeren alanları ara
+            if (projectIds.length === 0) {
+                console.log("Standart alanlarda proje bulunamadı, alternatif arama yapılıyor...");
+                
+                const allFields = Object.entries(user as any);
+                for (const [key, value] of allFields) {
+                    // Anahtar adında 'project' veya 'proje' geçen alanları ara
+                    if (
+                        key.toLowerCase().includes('project') || 
+                        key.toLowerCase().includes('proje')
+                    ) {
+                        console.log(`Potansiyel proje alanı bulundu - ${key}:`, value);
+                        
+                        if (Array.isArray(value)) {
+                            projectIds.push(...value);
+                        } else if (typeof value === 'string') {
+                            projectIds.push(value);
+                        } else if (typeof value === 'object' && value !== null) {
+                            // Obje ise, ya anahtarları ya da içindeki dizi/string değerleri ekle
+                            const objKeys = Object.keys(value);
+                            objKeys.forEach(objKey => {
+                                const objValue = value[objKey];
+                                if (typeof objValue === 'string' || typeof objValue === 'number') {
+                                    projectIds.push(objKey);
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+            
+            // Çoğaltılmış ve boş değerleri filtrele
+            projectIds = [...new Set(projectIds)].filter(Boolean);
+            console.log("Son işlenmiş proje ID'leri:", projectIds);
+            
+            // Proje detaylarını FireStore'dan al
+            if (projectIds.length > 0) {
+                const details = await getProjectDetails(projectIds);
+                projectDetails.value = details;
+                console.log("Yüklenen proje detayları:", details);
+            } else {
+                console.log("Hiç proje ID'si bulunamadı");
+                projectDetails.value = [];
+            }
+        } catch (error) {
+            console.error("Kullanıcı projeleri yüklenirken hata:", error);
+        }
+    };
 
     onUnmounted(() => {
         // Firebase dinleyicisini temizle

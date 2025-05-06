@@ -47,9 +47,9 @@
             </template>
         </div>
 
-        <!-- BEGIN APP SETTING LAUNCHER -->
+        <!-- BEGIN APP SETTING LAUNCHER DISABLED
         <Setting />
-        <!-- END APP SETTING LAUNCHER -->
+        END APP SETTING LAUNCHER DISABLED -->
 
         <div class="main-container text-black dark:text-white-dark min-h-screen" :class="[store.navbar]">
             <!--  BEGIN SIDEBAR  -->
@@ -79,7 +79,7 @@
     import Sidebar from '@/components/layout/Sidebar.vue';
     import Header from '@/components/layout/Header.vue';
     import Footer from '@/components/layout/Footer.vue';
-    import Setting from '@/components/ThemeCustomizer.vue';
+    // import Setting from '@/components/ThemeCustomizer.vue'; // Pasif hale getirildi
     import ProjectSelector from '@/components/ProjectSelector.vue'; 
     import appSetting from '@/app-setting';
     import { useAuthStore } from '@/stores/auth-store';
