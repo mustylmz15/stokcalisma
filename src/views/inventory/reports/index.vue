@@ -44,9 +44,27 @@
                        selectedReport === 'movement-history' ? 'Hareket Geçmişi' :
                        selectedReport === 'low-stock' ? 'Kritik Stok Raporu' : '' }}
                 </h5>
-                <button class="btn btn-primary" @click="exportReport">
-                    Dışa Aktar
-                </button>
+                <div class="flex gap-2">
+                    <!-- PDF çıktı butonu - sadece admin ve onarım merkezi sorumlusu görebilir -->
+                    <button 
+                        v-if="authStore.canAccessRepairReports" 
+                        class="btn btn-info" 
+                        @click="exportReportToPDF"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 ltr:mr-2 rtl:ml-2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                            <line x1="10" y1="9" x2="8" y2="9"></line>
+                        </svg>
+                        PDF Çıktı
+                    </button>
+                    
+                    <button class="btn btn-primary" @click="exportReport">
+                        Dışa Aktar
+                    </button>
+                </div>
             </div>
 
             <!-- Filtreler -->
@@ -1025,6 +1043,27 @@ const exportReport = async () => {
         document.body.removeChild(link);
     } catch (error) {
         console.error('Rapor dışa aktarılırken hata oluştu:', error);
+    } finally {
+        loading.value = false;
+    }
+};
+
+const exportReportToPDF = async () => {
+    try {
+        loading.value = true;
+        const reportData = filteredItems.value;
+        const reportName = selectedReport.value === 'stock-status' ? 'Stok_Durum' :
+                          selectedReport.value === 'movement-history' ? 'Hareket_Gecmisi' :
+                          'Kritik_Stok';
+        
+        const currentDate = new Date().toLocaleDateString('tr-TR').replace(/\./g, '-');
+        const fileName = `${reportName}_${currentDate}.pdf`;
+
+        // PDF oluşturma işlemleri burada yapılacak
+        // Örnek: jsPDF kütüphanesi ile PDF oluşturma
+
+    } catch (error) {
+        console.error('Rapor PDF olarak dışa aktarılırken hata oluştu:', error);
     } finally {
         loading.value = false;
     }

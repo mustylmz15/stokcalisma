@@ -3,6 +3,12 @@ import { DocumentData } from 'firebase/firestore';
 import { auth } from '@/firebase';
 import { onAuthStateChanged, Unsubscribe } from 'firebase/auth';
 import { userService, getUserProjects } from '@/services/userService';
+import PermissionServiceProxy from '@/services/permissionServiceProxy'; 
+import { Permission, UserRole as PermRole } from '@/services/permissionService';
+import DynamicPermissionManager from '@/services/dynamicPermissionManager';
+
+// Kolay erişim için alias tanımlıyoruz
+const PermissionService = PermissionServiceProxy;
 
 // Login için kullanılacak interface
 export interface LoginCredentials {
@@ -21,6 +27,8 @@ export interface BaseUser {
     lastLogin: string;
     depot?: string | null;
     canEdit: boolean;
+    roles?: string[]; // Birden fazla rol desteği için
+    customPermissions?: Record<string, boolean>; // Özelleştirilmiş izinler
 }
 
 // ValidUser interface'i (aktif kullanıcılar için)
@@ -29,15 +37,17 @@ export interface ValidUser extends BaseUser {
     password?: string; // Şifre alanını opsiyonel olarak ekliyoruz
 }
 
-// Kullanıcı rollerini tanımlayan type
-export type UserRole = 'admin' | 'user' | 'observer' | 'depo_sorumlusu' | 'proje_admin' | 'ariza_merkez';
+// Kullanıcı rollerini tanımlayan type (mevcut sistemle uyumluluk için)
+export type UserRole = 'admin' | 'user' | 'depo_sorumlusu' | 'proje_admin' | 
+    'proje_sorumlusu' | 'proje_it_sorumlusu' | 'onarim_merkezi_sorumlusu' | 'onarim_kullanici';
 
 // Firestore'dan gelen kullanıcı verisi için interface
 export interface UserDocument {
     id: string;
     email: string;
     name: string;
-    role: UserRole;
+    role: UserRole; // Ana rol
+    roles?: string[]; // Ek roller (opsiyonel)
     isActive: boolean;
     createdAt: string;
     updatedAt?: string;
@@ -47,6 +57,7 @@ export interface UserDocument {
     avatar: string;
     canEdit: boolean;
     password?: string; // Şifre alanını opsiyonel olarak ekliyoruz
+    customPermissions?: Record<string, boolean>; // Özelleştirilmiş izinler
 }
 
 // Login yanıtı için interface
@@ -60,11 +71,13 @@ export interface UpdateUserData {
     name?: string;
     phone?: string;
     role?: UserRole;
+    roles?: string[]; // Çoklu rol desteği için
     avatar?: string;
     depot?: string | null;
     password?: string;
     isActive?: boolean;
     projectId?: string | null; // Kullanıcının bağlı olduğu proje ID'si
+    customPermissions?: Record<string, boolean>; // Özelleştirilmiş izinler
 }
 
 // API yanıtları için interface
@@ -87,9 +100,14 @@ export const useAuthStore = defineStore('auth', {
         authUnsubscribe: null as Unsubscribe | null,
     }),
     getters: {
+        // Mevcut oturum açmış kullanıcıyı döndür
+        currentUser(): UserDocument | null {
+            return this.userInfo;
+        },
+        
         // Kullanıcının admin rolü olup olmadığını kontrol et
         isAdmin(state): boolean {
-            return state.userInfo?.role === 'admin';
+            return PermissionService.hasRole(PermRole.ADMIN) || state.userInfo?.role === 'admin';
         },
 
         // Kullanıcının proje admin rolü olup olmadığını kontrol et
@@ -99,17 +117,136 @@ export const useAuthStore = defineStore('auth', {
 
         // Kullanıcının depo sorumlusumu olup olmadığını kontrol et
         isWarehouseManager(state): boolean {
-            return state.userInfo?.role === 'depo_sorumlusu';
+            return state.userInfo?.role === 'depo_sorumlusu' || PermissionService.hasRole(PermRole.WAREHOUSE_MANAGER);
         },
 
-        // Kullanıcının gözlemci rolü olup olmadığını kontrol et
-        isObserver(state): boolean {
-            return state.userInfo?.role === 'observer';
+        // Proje sorumlusu kontrolü 
+        isProjectManager(state): boolean {
+            return state.userInfo?.role === 'proje_sorumlusu' || PermissionService.hasRole(PermRole.PROJECT_MANAGER);
+        },
+        
+        // Proje IT sorumlusu kontrolü
+        isProjectITManager(state): boolean {
+            return state.userInfo?.role === 'proje_it_sorumlusu' || PermissionService.hasRole(PermRole.PROJECT_IT_MANAGER);
+        },
+        
+        // Onarım merkezi sorumlusu kontrolü
+        isRepairCenterManager(state): boolean {
+            return state.userInfo?.role === 'onarim_merkezi_sorumlusu' || 
+                   PermissionService.hasRole(PermRole.SERVICE_CENTER_MANAGER);
+        },
+        
+        // Onarım kullanıcısı kontrolü
+        isRepairUser(state): boolean {
+            return state.userInfo?.role === 'onarim_kullanici' || PermissionService.hasRole(PermRole.REPAIR_USER);
         },
 
-        // Kullanıcının arıza merkezi rolü olup olmadığını kontrol et
-        isRepairCenter(state): boolean {
-            return state.userInfo?.role === 'ariza_merkez';
+        // PDF rapor erişimi kontrolü - Admin ve onarım merkezi sorumlusu erişebilir
+        canAccessRepairReports(state): boolean {
+            return PermissionService.hasPermission(Permission.ACCESS_REPAIR_REPORTS);
+        },
+        
+        // Onarım süreçlerini yönetme yetkisi - Admin ve onarım merkezi sorumlusu yönetebilir
+        canManageRepairProcesses(state): boolean {
+            return PermissionService.hasPermission(Permission.MANAGE_REPAIR_PROCESSES);
+        },
+        
+        // Ana ürün tanımlarını yönetme yetkisi - Sadece admin
+        canManageProductDefinitions(state): boolean {
+            return this.isAdmin;
+        },
+        
+        // Yeni kullanıcı ekleme yetkisi - Sadece admin
+        canAddGlobalUsers(state): boolean {
+            return PermissionService.hasPermission(Permission.MANAGE_USERS);
+        },
+        
+        // Proje yönetimi yetkisi - Sadece admin proje ekleyebilir
+        canManageProjects(state): boolean {
+            return PermissionService.hasPermission(Permission.MANAGE_PROJECTS);
+        },
+        
+        // Proje bazında kullanıcı ekleme yetkisi - Admin ve proje admin
+        canAddProjectUsers(state): boolean {
+            return this.isAdmin || this.isProjectAdmin;
+        },
+        
+        // Proje bazlı depo kullanıcısı oluşturma yetkisi - Admin ve proje admin
+        canCreateDepotUsersForProject(state): boolean {
+            return this.isAdmin || this.isProjectAdmin;
+        },
+        
+        // Proje bazlı ürün ayarlarını yapma yetkisi - Admin ve proje admin
+        canConfigureProjectProducts(state): boolean {
+            return this.isAdmin || this.isProjectAdmin;
+        },
+        
+        // Malzeme talep onaylama yetkisi - Admin ve proje admin
+        canApproveMaterialRequests(state): boolean {
+            return this.isAdmin || this.isProjectAdmin;
+        },
+        
+        // Merkez depodan illere malzeme gönderim yetkisi - Admin, proje admin ve proje sorumlusu
+        canManageCentralWarehouseTransfers(state): boolean {
+            return this.isAdmin || this.isProjectAdmin || this.isProjectManager;
+        },
+
+        // Proje Sorumlusu Rolü - İleride kullanılacak yetkiler
+        // Proje Admin onayından sonra onay verme yetkisi
+        canApproveAfterProjectAdmin(state): boolean {
+            // İleride aktifleştirilecek - Şu an için yalnızca rol kontrolü yapılıyor
+            return this.isAdmin || this.isProjectManager;
+        },
+        
+        // Transfer onayından sonra malzeme gönderimi izni
+        canSendMaterialAfterApproval(state): boolean {
+            // İleride aktifleştirilecek - Şu an için yalnızca rol kontrolü yapılıyor
+            return this.isAdmin || this.isProjectManager;
+        },
+
+        // Proje IT Sorumlusu Rolü - İleride kullanılacak yetkiler
+        // Proje IT Sorumlusu sadece kendi sorumluluğundaki cihazları yönetecek
+        canManageITDevices(state): boolean {
+            // İleride aktifleştirilecek - Şu an için yalnızca rol kontrolü yapılıyor
+            // Proje IT Sorumlusu kendisinin sorumluluğundaki cihazları görüntüleyecek ve yönetecek
+            return this.isAdmin || this.isProjectAdmin || this.isProjectITManager;
+        },
+        
+        // Proje IT Sorumlusunun cihaz onarım talepleri oluşturma yetkisi
+        canCreateITDeviceRepairRequests(state): boolean {
+            // İleride aktifleştirilecek - Şu an için yalnızca rol kontrolü yapılıyor
+            return this.isAdmin || this.isProjectAdmin || this.isProjectITManager;
+        },
+
+        // Onarım Merkezi Sorumlusu Rolü - İleride kullanılacak yetkiler
+        // Onarım merkezine gelen arızalı ürünleri onaylama/reddetme yetkisi
+        canManageIncomingRepairItems(state): boolean {
+            // İleride aktifleştirilecek - Şu an için yalnızca rol kontrolü yapılıyor
+            return this.isAdmin || this.isRepairCenterManager;
+        },
+        
+        // Onarım merkezi QR kod üretme ve yazdırma yetkisi
+        canGenerateRepairQRCodes(state): boolean {
+            // İleride aktifleştirilecek - Şu an için yalnızca rol kontrolü yapılıyor
+            return this.isAdmin || this.isRepairCenterManager;
+        },
+        
+        // QR kod ile ürün detaylarını görüntüleme yetkisi
+        canViewRepairDetailsWithQR(state): boolean {
+            // İleride aktifleştirilecek - Şu an için yalnızca rol kontrolü yapılıyor
+            return this.isAdmin || this.isRepairCenterManager || this.isRepairUser;
+        },
+        
+        // Onarım işlemlerini sisteme girme yetkisi
+        canRecordRepairOperations(state): boolean {
+            // İleride aktifleştirilecek - Şu an için yalnızca rol kontrolü yapılıyor
+            return this.isAdmin || this.isRepairCenterManager || this.isRepairUser;
+        },
+        
+        // Onarılan ürünleri ilgili depolara gönderme yetkisi
+        canSendRepairedItemsBack(state): boolean {
+            // İleride aktifleştirilecek - Şu an için yalnızca rol kontrolü yapılıyor
+            return this.isAdmin || this.isRepairCenterManager;
         },
 
         // Kullanıcının yetkili olduğu depo bilgisini al
@@ -118,11 +255,40 @@ export const useAuthStore = defineStore('auth', {
             if (this.isAdmin || this.isProjectAdmin) return null; // Admin ve proje admin tüm depolara erişebilir
             return state.userInfo.depot || null;
         },
+        
+        // Depo kullanıcısının arızalı ürün kaydı yapma yetkisi
+        canRegisterFaultyProducts(state): boolean {
+            if (!state.userInfo) return false;
+            return this.isAdmin || this.isProjectAdmin || this.isWarehouseManager;
+        },
+        
+        // Depo kullanıcısının arızalı ürünleri onarıma gönderme yetkisi
+        canSendProductsToRepair(state): boolean {
+            if (!state.userInfo) return false;
+            return this.isAdmin || this.isProjectAdmin || this.isWarehouseManager;
+        },
+        
+        // Depo kullanıcısının onarımdan gelen ürünleri teslim alma yetkisi
+        canReceiveRepairedProducts(state): boolean {
+            if (!state.userInfo) return false;
+            return this.isAdmin || this.isProjectAdmin || this.isWarehouseManager;
+        },
+        
+        // Depo kullanıcısının konsinye ürün takibi yapma yetkisi
+        canManageConsignedProducts(state): boolean {
+            if (!state.userInfo) return false;
+            return this.isAdmin || this.isProjectAdmin || this.isWarehouseManager;
+        },
+        
+        // Depo kullanıcısının merkez depodan ürün talebinde bulunma yetkisi
+        canRequestProductsFromCentralWarehouse(state): boolean {
+            if (!state.userInfo) return false;
+            return this.isAdmin || this.isProjectAdmin || this.isWarehouseManager;
+        },
 
         // Kullanıcının düzenleme yapma yetkisi olup olmadığını kontrol et
         canEditItems(state): boolean {
             if (!state.userInfo) return false;
-            if (this.isObserver) return false; // Gözlemciler düzenleme yapamaz
             return state.userInfo.canEdit || this.isAdmin || this.isProjectAdmin;
         }
     },
@@ -183,7 +349,19 @@ export const useAuthStore = defineStore('auth', {
                         if (userData) {
                             this.isLoggedIn = true;
                             this.userInfo = userData as UserDocument;
+                            
+                            // Kullanıcı bilgilerini localStorage'a kaydet
                             localStorage.setItem('user', JSON.stringify(this.userInfo));
+                            
+                            // Kullanıcı izinlerini yükle ve önbelleğe al
+                            try {
+                                // Dinamik izin sistemini başlat
+                                console.log('Kullanıcı izinleri yükleniyor...');
+                                await DynamicPermissionManager.loadUserPermissions(this.userInfo.id);
+                                console.log('Kullanıcı izinleri başarıyla yüklendi');
+                            } catch (permError) {
+                                console.error('Kullanıcı izinleri yüklenirken hata:', permError);
+                            }
                         } else {
                             this.isLoggedIn = false;
                             this.userInfo = null;
@@ -233,6 +411,17 @@ export const useAuthStore = defineStore('auth', {
                 // Bu örnekte basit bir localStorage kontrolü yapıyoruz
                 // Kullanıcı bilgilerini state'e yükle
                 this.userInfo = JSON.parse(userData);
+                
+                // Kullanıcı izinlerini yükle
+                try {
+                    if (this.userInfo?.id) {
+                        await DynamicPermissionManager.loadUserPermissions(this.userInfo.id);
+                        console.log('Oturum kontrolünde kullanıcı izinleri yüklendi');
+                    }
+                } catch (permError) {
+                    console.warn('İzinler yüklenirken hata:', permError);
+                    // Bu noktada izinlerde hata olması giriş yapmasını engellemesin
+                }
                 
                 // İşlem başarılı, kullanıcı giriş yapmış olarak kabul et
                 this.isLoggedIn = true;
@@ -285,6 +474,14 @@ export const useAuthStore = defineStore('auth', {
                 localStorage.setItem('user', JSON.stringify(this.userInfo));
                 localStorage.setItem('token', token);
                 
+                // Dinamik izin sistemini başlat
+                try {
+                    await DynamicPermissionManager.loadUserPermissions(user.id);
+                    console.log('Kullanıcı izinleri yüklendi');
+                } catch (permError) {
+                    console.error('Kullanıcı izinleri yüklenirken hata:', permError);
+                }
+                
                 // YENİ: Kullanıcı projelerini hemen yüklemeye başla
                 console.log('Giriş başarılı - kullanıcı projelerini yüklüyor...');
                 
@@ -314,26 +511,66 @@ export const useAuthStore = defineStore('auth', {
             }
         },
         
-        // Çıkış işlemi - düzenledik
+        // Çıkış işlemi - güçlendirildi
         async signOut() {
             try {
-                // Firebase dinleyicisini temizleme ekledim
-                this.cleanupAuthListener();
+                // Kullanıcının ID'sini saklayın (izin önbelleğini temizlemek için)
+                const userId = this.userInfo?.id;
                 
-                await userService.logout();
+                // Önce durumu hemen güncelle (yönlendirmeden önce)
                 this.isLoggedIn = false;
                 this.userInfo = null;
-                this.resetProjectData();
-                  // localStorage'dan oturum bilgilerini temizle
+                
+                // İzin önbelleğini temizle
+                try {
+                    // DynamicPermissionManager bir singleton
+                    if (userId) {
+                        DynamicPermissionManager.clearUserPermissions(userId);
+                    } else {
+                        DynamicPermissionManager.clearUserPermissions(); // Tüm önbelleği temizle
+                    }
+                    console.log('İzin önbelleği temizlendi');
+                } catch (permError) {
+                    console.error('İzin önbelleği temizlenirken hata:', permError);
+                    // Devam et - bu kritik değil
+                }
+                
+                // Firebase dinleyicisini temizle
+                try {
+                    this.cleanupAuthListener();
+                } catch (listenerError) {
+                    console.error('Firebase dinleyici temizlenirken hata:', listenerError);
+                    // Devam et - bu kritik değil
+                }
+                
+                // localStorage'dan oturum bilgilerini temizle - hemen yap
                 localStorage.removeItem('user');
                 localStorage.removeItem('token');
                 localStorage.removeItem('currentProject');
                 
                 // sessionStorage'dan proje seçimini temizle
                 sessionStorage.removeItem('activeProjectId');
+                
+                // Proje verilerini sıfırla
+                this.resetProjectData();
+                
+                // Firebase logout
+                try {
+                    await userService.logout();
+                } catch (logoutError) {
+                    console.error('Firebase çıkış işleminde hata:', logoutError);
+                    // Devam et - kullanıcı zaten yönlendirilmiş olacak
+                }
+                
+                return true; // Başarılı çıkış
             } catch (error) {
-                console.error('Logout error:', error);
-                throw error;
+                console.error('Çıkış işleminde hata:', error);
+                // Hata durumunda bile oturumu temizleme işlemini tamamla
+                this.isLoggedIn = false;
+                this.userInfo = null;
+                localStorage.removeItem('user');
+                localStorage.removeItem('token');
+                return false;
             }
         },
 
@@ -471,6 +708,101 @@ export const useAuthStore = defineStore('auth', {
             return [];
         },
 
+        // Proje Admin'in kullanıcıları kendi projesine eklemesi için metod
+        async addUserToProject(userId: string, projectId: string, projectRole: string = 'user'): Promise<boolean> {
+            try {
+                // Önce yetki kontrolü
+                if (!this.userInfo) return false;
+                
+                // Admin her projeye kullanıcı ekleyebilir
+                if (this.isAdmin) {
+                    const { useProjectStore } = await import('./projects');
+                    const projectStore = useProjectStore();
+                    return await projectStore.addUserToProject(userId, projectId, projectRole);
+                }
+                
+                // Proje Admin sadece kendi yönettiği projelere kullanıcı ekleyebilir
+                if (this.isProjectAdmin) {
+                    // Kullanıcının bu projede yetkisi var mı kontrol et
+                    const hasPermission = await this.hasProjectRole(projectId, ['admin', 'proje_admin']);
+                    if (!hasPermission) {
+                        console.error('Proje Admin bu projeye erişim yetkisine sahip değil:', projectId);
+                        return false;
+                    }
+                    
+                    // Kullanıcıyı projeye ekle
+                    const { useProjectStore } = await import('./projects');
+                    const projectStore = useProjectStore();
+                    return await projectStore.addUserToProject(userId, projectId, projectRole);
+                }
+                
+                return false;
+            } catch (error) {
+                console.error('Kullanıcı projeye eklenirken hata:', error);
+                return false;
+            }
+        },
+        
+        // Proje Admin'in kendi projesi için depo kullanıcısı oluşturması
+        async createDepotUserForProject(userData: { 
+            email: string;
+            name: string;
+            password: string;
+            phone: string;
+            depot: string;
+            projectId: string;
+        }): Promise<UserResponse> {
+            try {
+                // Yetki kontrolü
+                if (!this.canCreateDepotUsersForProject) {
+                    return {
+                        success: false,
+                        message: 'Bu işlem için yetkiniz bulunmuyor'
+                    };
+                }
+                
+                // Proje Admin ise, sadece kendi projesi için depo kullanıcısı oluşturabilir
+                if (this.isProjectAdmin && !this.isAdmin) {
+                    const hasPermission = await this.hasProjectRole(userData.projectId, ['admin', 'proje_admin']);
+                    if (!hasPermission) {
+                        return {
+                            success: false,
+                            message: 'Bu proje için depo kullanıcısı oluşturma yetkiniz yok'
+                        };
+                    }
+                }
+                
+                // Depo kullanıcısını oluştur
+                const result = await this.addUser({
+                    id: '',
+                    email: userData.email,
+                    name: userData.name,
+                    password: userData.password,
+                    role: 'depo_sorumlusu' as UserRole,
+                    isActive: true,
+                    createdAt: new Date().toISOString(),
+                    lastLogin: '',
+                    phone: userData.phone,
+                    depot: userData.depot,
+                    avatar: '/assets/images/profile-default.jpeg',
+                    canEdit: true
+                });
+                
+                // Başarılı ise kullanıcıyı projeye ekle
+                if (result.success && result.user) {
+                    await this.addUserToProject(result.user.id, userData.projectId, 'depo_sorumlusu');
+                }
+                
+                return result;
+            } catch (error) {
+                console.error('Depo kullanıcısı oluşturulurken hata:', error);
+                return {
+                    success: false,
+                    message: error instanceof Error ? error.message : 'Bilinmeyen bir hata oluştu'
+                };
+            }
+        },
+
         // Yeni kullanıcı ekleme
         async addUser(user: UserDocument): Promise<UserResponse> {
             try {
@@ -592,6 +924,106 @@ export const useAuthStore = defineStore('auth', {
             } catch (error) {
                 console.error('Delete user error:', error);
                 return { success: false, message: error instanceof Error ? error.message : 'Unknown error' };
+            }
+        },
+        
+        // Proje Admin'in proje bazlı ürün ayarlarını yapabilmesi için metod
+        async configureProjectProduct(projectId: string, productSettings: any): Promise<boolean> {
+            try {
+                // Önce yetki kontrolü
+                if (!this.userInfo) return false;
+                
+                // Admin her projenin ürün ayarlarını yapabilir
+                if (this.isAdmin) {
+                    const projectProductService = await import('@/services/projectProductService').then(m => m.default);
+                    await projectProductService.addProductSetting({
+                        projectId,
+                        ...productSettings
+                    });
+                    return true;
+                }
+                
+                // Proje Admin sadece kendi projelerinin ürün ayarlarını yapabilir
+                if (this.isProjectAdmin) {
+                    // Kullanıcının bu projede yetkisi var mı kontrol et
+                    const hasPermission = await this.hasProjectRole(projectId, ['admin', 'proje_admin']);
+                    if (!hasPermission) {
+                        console.error('Proje Admin bu projeye erişim yetkisine sahip değil:', projectId);
+                        return false;
+                    }
+                    
+                    // Proje ürün ayarlarını yap
+                    const projectProductService = await import('@/services/projectProductService').then(m => m.default);
+                    await projectProductService.addProductSetting({
+                        projectId,
+                        ...productSettings
+                    });
+                    return true;
+                }
+                
+                return false;
+            } catch (error) {
+                console.error('Proje ürün ayarları yapılandırılırken hata:', error);
+                return false;
+            }
+        },
+        
+        // Proje Admin'in malzeme taleplerini onaylaması için metod
+        async approveMaterialRequest(requestId: string, approverName: string, approvedItems?: any[], notes?: string): Promise<boolean> {
+            try {
+                // Yetki kontrolü
+                if (!this.canApproveMaterialRequests) return false;
+                
+                const materialRequestService = await import('@/services/materialRequestService').then(m => m.default);
+                
+                // Önce talebi getir
+                const request = await materialRequestService.getRequest(requestId);
+                if (!request) {
+                    console.error('Onaylanacak talep bulunamadı:', requestId);
+                    return false;
+                }
+                
+                // Eğer Proje Admin ise, sadece kendi projesi için gelen talepleri onaylayabilir
+                if (this.isProjectAdmin && !this.isAdmin) {
+                    const hasPermission = await this.hasProjectRole(request.targetProjectId, ['admin', 'proje_admin']);
+                    if (!hasPermission) {
+                        console.error('Bu talebi onaylama yetkiniz yok');
+                        return false;
+                    }
+                }
+                
+                // Talebi onayla
+                await materialRequestService.approveRequest(requestId, approverName, approvedItems, notes);
+                return true;
+            } catch (error) {
+                console.error('Malzeme talebi onaylanırken hata:', error);
+                return false;
+            }
+        },
+        
+        // Proje Admin'in merkez depodan illere malzeme gönderim işlemlerini yönetmesi için metod
+        async createCentralWarehouseTransfer(transferData: any): Promise<boolean> {
+            try {
+                // Yetki kontrolü
+                if (!this.canManageCentralWarehouseTransfers) return false;
+                
+                const centralWarehouseTransferService = await import('@/services/centralWarehouseTransferService').then(m => m.default);
+                
+                // Eğer Proje Admin ise, sadece kendi projesi için transfer oluşturabilir
+                if (this.isProjectAdmin && !this.isAdmin) {
+                    const hasPermission = await this.hasProjectRole(transferData.projectId, ['admin', 'proje_admin']);
+                    if (!hasPermission) {
+                        console.error('Bu proje için transfer oluşturma yetkiniz yok');
+                        return false;
+                    }
+                }
+                
+                // Transfer oluştur
+                await centralWarehouseTransferService.createTransfer(transferData);
+                return true;
+            } catch (error) {
+                console.error('Merkez depo transferi oluşturulurken hata:', error);
+                return false;
             }
         },
 

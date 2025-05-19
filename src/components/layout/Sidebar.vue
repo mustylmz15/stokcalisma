@@ -73,6 +73,37 @@
                             <icon-minus class="w-4 h-5 flex-none hidden" />
                             <span>Envanter Yönetimi</span>
                         </h2>
+
+                        <!-- Depo Kullanıcısı Menüsü -->
+                        <li class="menu nav-item" v-if="authStore.isWarehouseManager">
+                            <button
+                                type="button"
+                                class="nav-link group w-full"
+                                :class="{ active: activeDropdown === 'warehouse' }"
+                                @click="activeDropdown === 'warehouse' ? (activeDropdown = '') : (activeDropdown = 'warehouse')"
+                            >
+                                <div class="flex items-center">
+                                    <icon-menu-store class="group-hover:!text-primary shrink-0" />
+                                    <span class="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">
+                                        DEPO YÖNETİMİ
+                                    </span>
+                                </div>
+                                <div :class="{ 'rtl:rotate-90 -rotate-90': activeDropdown !== 'warehouse' }">
+                                    <icon-caret-down />
+                                </div>
+                            </button>
+                            <vue-collapsible :isOpen="activeDropdown === 'warehouse'">
+                                <ul class="sub-menu text-gray-500">
+                                    <li>
+                                        <router-link to="/warehouse-user/dashboard" @click="toggleMobileMenu">Anasayfa</router-link>
+                                    </li>
+                                    <li>
+                                        <router-link to="/warehouse-user/repaired-items" @click="toggleMobileMenu">Onarılan Ürünler</router-link>
+                                    </li>
+                                </ul>
+                            </vue-collapsible>
+                        </li>
+
                         <li class="menu nav-item">
                             <button
                                 type="button"
@@ -208,6 +239,39 @@
                                     </span>
                                 </div>
                             </router-link>
+                        </li>
+                        
+                        <!-- Proje Admin Menüsü (Sadece proje admin veya admin görebilir) -->
+                        <li v-if="authStore.isAdmin || authStore.isProjectAdmin" class="menu nav-item">
+                            <button
+                                type="button"
+                                class="nav-link group w-full"
+                                :class="{ active: activeDropdown === 'project-admin' }"
+                                @click="activeDropdown === 'project-admin' ? (activeDropdown = '') : (activeDropdown = 'project-admin')"
+                            >
+                                <div class="flex items-center">
+                                    <icon-menu-widgets class="group-hover:!text-primary shrink-0" />
+                                    <span class="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">
+                                        PROJE YÖNETİCİSİ
+                                    </span>
+                                </div>
+                                <div :class="{ 'rtl:rotate-90 -rotate-90': activeDropdown !== 'project-admin' }">
+                                    <icon-caret-down />
+                                </div>
+                            </button>
+                            <vue-collapsible :isOpen="activeDropdown === 'project-admin'">
+                                <ul class="sub-menu text-gray-500">
+                                    <li>
+                                        <router-link to="/project-admin/project-products" @click="toggleMobileMenu">Proje Ürün Yapılandırması</router-link>
+                                    </li>
+                                    <li>
+                                        <router-link to="/project-admin/material-requests" @click="toggleMobileMenu">Malzeme Talep Onayları</router-link>
+                                    </li>
+                                    <li>
+                                        <router-link to="/project-admin/warehouse-transfers" @click="toggleMobileMenu">Depo Transferleri</router-link>
+                                    </li>
+                                </ul>
+                            </vue-collapsible>
                         </li>
                         
                         <!-- Veritabanı Yönetimi Menüsü (Sadece admin görebilir) -->

@@ -62,13 +62,52 @@
 
             <div class="panel mb-5">                <div class="flex items-center justify-between mb-5">
                     <h5 class="font-semibold text-lg dark:text-white-light">Arızalı Ürün Yönetimi</h5>
-                    <button type="button" @click="openAddModal" class="btn btn-primary">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 ltr:mr-2 rtl:ml-2">
-                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                        </svg>
-                        Arızalı Ürün Ekle
-                    </button>
+                    <div class="flex gap-2">
+                        <!-- Sadece admin ve onarım merkezi sorumlusu PDF çıktı alabilir -->
+                        <button 
+                            v-if="PermissionService.hasPermission(Permission.ACCESS_REPAIR_REPORTS)" 
+                            type="button" 
+                            class="btn btn-info"
+                            @click="exportToPDF"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 ltr:mr-2 rtl:ml-2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                                <line x1="10" y1="9" x2="8" y2="9"></line>
+                            </svg>
+                            PDF Çıktı Al
+                        </button>
+                        
+                        <!-- Sadece admin ve onarım merkezi sorumlusu onarım süreçlerini yönetebilir -->
+                        <button 
+                            v-if="PermissionService.hasPermission(Permission.MANAGE_REPAIR_PROCESSES)" 
+                            type="button" 
+                            class="btn btn-warning"
+                            @click="manageRepairProcesses"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 ltr:mr-2 rtl:ml-2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="8" x2="12" y2="12"></line>
+                                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                            </svg>
+                            Onarım Süreçleri
+                        </button>
+                        
+                        <button 
+                            type="button" 
+                            @click="openAddModal" 
+                            class="btn btn-primary"
+                            v-if="PermissionService.hasPermission(Permission.ADD_FAULTY_PRODUCT)"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 ltr:mr-2 rtl:ml-2">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            Arızalı Ürün Ekle
+                        </button>
+                    </div>
                 </div>
 
                 <div class="bg-info-light text-info p-3 mb-5 rounded">
@@ -484,38 +523,73 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
-import { useArizaStore } from '@/stores/ariza-store';
+import Swal from 'sweetalert2';
 import { useToast } from 'vue-toastification';
+import { useRoute } from 'vue-router';
+import { useArizaStore } from '@/stores/ariza-store';
+import { useAuthStore } from '@/stores/auth-store';
 import { useInventoryStore } from '@/stores/inventory';
-import { useProjectStore } from '@/stores/project-store';
-import { collection, getDocs, Timestamp } from 'firebase/firestore';
-import { db } from '@/firebase';
 import serializedInventoryService from '@/services/serializedInventoryService';
+import { useProjectStore } from '@/stores/projects';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '@/firebase';
+import PermissionService, { Permission, UserRole as PermRole } from '@/services/permissionService';
 
 const arizaStore = useArizaStore();
+const authStore = useAuthStore();
 const inventoryStore = useInventoryStore();
 const projectStore = useProjectStore();
 const toast = useToast();
+const route = useRoute();
 
-// Veri durumu
+// Gerekli değişkenler
+
+
+// Yeni eklenen fonksiyonlar
+const exportToPDF = () => {
+    // PDF çıktı işlevi henüz eklenmediği için bilgilendirme
+    Swal.fire({
+        title: 'Geliştirme Aşamasında!',
+        text: 'Bu özellik şu anda geliştirme aşamasındadır ve yakında kullanıma sunulacaktır.',
+        icon: 'info',
+        confirmButtonText: 'Tamam'
+    });
+};
+
+const manageRepairProcesses = () => {
+    // Onarım süreçleri yönetimi henüz eklenmediği için bilgilendirme
+    Swal.fire({
+        title: 'Geliştirme Aşamasında!',
+        text: 'Onarım süreçleri yönetimi özelliği şu anda geliştirme aşamasındadır ve yakında kullanıma sunulacaktır.',
+        icon: 'info',
+        confirmButtonText: 'Tamam'
+    });
+};
+
+// Diğer bileşen değişkenleri ve fonksiyonları
 const loading = ref(false);
-const error = ref(null);
+const faultyProducts = ref([]);
+const serviceStations = ref([]);
 const selectedStatus = ref('');
+const selectedServiceCenter = ref('');
+const selectedWarehouse = ref('');
+const searchTerm = ref('');
 const showAddModal = ref(false);
-const showDetailModal = ref(false);
 const showUpdateStatusModal = ref(false);
 const selectedProduct = ref(null);
-
-// Seri numarası doğrulama durumu
-const serialNumberValidating = ref(false);
-const serialNumberError = ref('');
-const serialNumberSuccess = ref('');
-
-// Proje yükleme durumu
+const showDetailModal = ref(false);
+const showDetailsModal = ref(false);
+const detailsProduct = ref(null);
 const projectsLoading = ref(false);
 const projectsError = ref(null);
-
-// Form verileri
+const statusForm = ref({
+    newStatus: '',
+    notes: ''
+});
+const projects = ref([]);
+const serialNumberError = ref('');
+const serialNumberSuccess = ref('');
+const serialNumberValidating = ref(false);
 const formData = ref({
     productId: '',
     serialNumber: '',
@@ -531,11 +605,8 @@ const formData = ref({
     trackingNumber: '',
 });
 
-// Durum güncelleme formu
-const statusForm = ref({
-    newStatus: '',
-    notes: ''
-});
+// Veri durumu
+const error = ref(null);
 
 // Veri getirme
 const fetchData = async () => {
@@ -599,13 +670,13 @@ const fetchProjects = async () => {
 };
 
 // Hesaplanan değerler
-const faultyProducts = computed(() => arizaStore.getFaultyProducts);
 const serviceCenters = computed(() => arizaStore.getServiceCenters);
 const availableProducts = computed(() => inventoryStore.getProducts);
 const warehouses = computed(() => inventoryStore.getWarehouses);
 
-// Projeler değişkeni - artık computed değil, doğrudan ref (store bağlantısı olmadan)
+/* Projeler değişkeni - artık computed değil, doğrudan ref (store bağlantısı olmadan)
 const projects = ref([]);
+*/
 
 // Duruma göre filtrelenmiş ürünler
 const filteredProducts = computed(() => {

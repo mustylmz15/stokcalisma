@@ -56,7 +56,7 @@
                     </div>
                     <div class="mx-auto w-full max-w-[440px]">
                         <div class="mb-10">
-                            <h1 class="text-3xl font-extrabold uppercase !leading-snug text-primary md:text-4xl">UGES STOK TAKİP</h1>
+                            <h1 class="text-3xl font-extrabold uppercase !leading-snug text-primary md:text-4xl">ABY PROJECT </h1>
                             <p class="text-base font-bold leading-normal text-white-dark">Lütfen Kullanıcı adı ve Şifrenizi giriniz</p>
                         </div>
                         <form class="space-y-5 dark:text-white" @submit.prevent="handleSubmit">

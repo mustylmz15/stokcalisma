@@ -524,6 +524,40 @@ class ProjectService {
             return new Date().toISOString(); // Hata olursa varsayılan değer
         }
     }
+
+    // Depo ID'sine göre bağlı olduğu projeyi bul
+    async getProjectIdByWarehouse(warehouseId: string): Promise<string | null> {
+        try {
+            // Proje-depo ilişkisini kontrol et
+            const projectsSnapshot = await getDocs(this.projectsCollection);
+            
+            for (const projectDoc of projectsSnapshot.docs) {
+                const projectData = projectDoc.data();
+                
+                // Depoların doğrudan proje ile ilişkisi varsa
+                if (projectData.warehouses && Array.isArray(projectData.warehouses)) {
+                    const warehouse = projectData.warehouses.find((w: any) => w.id === warehouseId);
+                    if (warehouse) {
+                        return projectDoc.id;
+                    }
+                }
+                
+                // Stoklar üzerinden ilişki varsa
+                if (projectData.stocks && Array.isArray(projectData.stocks)) {
+                    const stock = projectData.stocks.find((s: any) => s.warehouseId === warehouseId);
+                    if (stock) {
+                        return projectDoc.id;
+                    }
+                }
+            }
+            
+            // İlişki bulunamadıysa null döndür
+            return null;
+        } catch (error) {
+            console.error('Depo-proje ilişkisi bulunurken hata oluştu:', error);
+            return null;
+        }
+    }
 }
 
 // Default export olarak tanımlandığı için, import ederken {} kullanmayın

@@ -1,0 +1,454 @@
+<!-- Onarılan Ürün Teslim Alma Sayfası -->
+<template>
+    <div>
+        <ul class="flex space-x-2 rtl:space-x-reverse">
+            <li>
+                <router-link to="/warehouse-user/dashboard" class="text-primary hover:underline">Depo Yönetimi</router-link>
+            </li>
+            <li class="before:content-['/'] ltr:before:mr-2 rtl:before:ml-2">
+                <span>Onarılan Ürünler</span>
+            </li>
+        </ul>
+
+        <div class="pt-5">
+            <div class="panel mb-5">
+                <div class="flex items-center justify-between mb-5">
+                    <h5 class="font-semibold text-lg dark:text-white-light">Onarımdan Gelen Ürünler</h5>
+                </div>
+
+                <div class="mb-5 flex items-center justify-between">
+                    <div class="flex items-center flex-1">
+                        <div class="flex-1">
+                            <input type="text" placeholder="Seri Numarası Ara..." class="form-input" v-model="search" />
+                        </div>
+                    </div>
+                    <div class="flex">
+                        <select class="form-select" v-model="statusFilter">
+                            <option value="">Tüm Durumlar</option>
+                            <option value="repair_completed">Onarım Tamamlandı</option>
+                            <option value="in_transit">Depoya Yolda</option>
+                            <option value="received">Teslim Alındı</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Onarılan Ürünler Tablosu -->
+                <div v-if="loading" class="flex justify-center items-center p-10">
+                    <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+                </div>
+                <div v-else-if="filteredRepairedItems.length > 0" class="table-responsive">
+                    <table class="table-striped">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Ürün</th>
+                                <th>Seri Numarası</th>
+                                <th>Onarım Detayı</th>
+                                <th>Durum</th>
+                                <th class="text-center">İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="(item, index) in filteredRepairedItems" :key="item.id">
+                                <td>{{ index + 1 }}</td>
+                                <td>{{ item.productName }}</td>
+                                <td>{{ item.serialNumber }}</td>
+                                <td>{{ item.repairDetails || '-' }}</td>
+                                <td>
+                                    <span :class="{
+                                        'badge bg-success': item.status === 'repair_completed',
+                                        'badge bg-info': item.status === 'in_transit',
+                                        'badge bg-warning': item.status === 'received'
+                                    }">
+                                        {{ translateStatus(item.status) }}
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <button type="button" v-if="item.status === 'repair_completed' || item.status === 'in_transit'" 
+                                                class="btn btn-sm btn-outline-primary" @click="receiveRepairedItem(item)">
+                                            Teslim Al
+                                        </button>
+                                        <button type="button" v-if="item.status === 'received'" 
+                                                class="btn btn-sm btn-outline-success" @click="approveRepairedItem(item)">
+                                            Onarımı Onayla
+                                        </button>
+                                        <button type="button" v-if="item.status === 'received'" 
+                                                class="btn btn-sm btn-outline-danger" @click="rejectRepairedItem(item)">
+                                            Onarımı Reddet
+                                        </button>
+                                        <button type="button" v-if="item.status === 'approved'" 
+                                                class="btn btn-sm btn-outline-info" @click="installRepairedItem(item)">
+                                            Ürünü Montaj Yap
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div v-else class="flex justify-center p-10">
+                    <p>Onarımdan gelen ürün bulunmamaktadır.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Teslim Alma Modal -->
+        <teleport to="#app">
+            <transition name="fade">
+                <div v-if="showReceiveModal" class="fixed inset-0 bg-[black]/60 z-[999] flex items-center justify-center px-4">
+                    <div class="panel border-0 p-0 rounded-lg overflow-hidden w-full max-w-lg">
+                        <div class="flex bg-[#fbfbfb] dark:bg-[#121c2c] items-center justify-between px-5 py-3">
+                            <h5 class="font-bold text-lg">Onarılmış Ürün Teslim Alma</h5>
+                            <button type="button" class="text-white-dark hover:text-dark" @click="showReceiveModal = false">
+                                <icon-x />
+                            </button>
+                        </div>
+                        <div class="p-5">
+                            <form @submit.prevent="submitReceiveItem">
+                                <div class="mb-5">
+                                    <label class="form-label">Ürün: {{ selectedItem?.productName }}</label>
+                                </div>
+                                <div class="mb-5">
+                                    <label class="form-label">Seri Numarası: {{ selectedItem?.serialNumber }}</label>
+                                </div>
+                                <div class="mb-5">
+                                    <label for="receiveNotes" class="form-label">Notlar</label>
+                                    <textarea id="receiveNotes" class="form-textarea" v-model="receiveForm.notes" rows="3" placeholder="Teslim alma notları..."></textarea>
+                                </div>
+                                <div class="flex justify-end items-center mt-8">
+                                    <button type="button" class="btn btn-outline-danger ltr:mr-2 rtl:ml-2" @click="showReceiveModal = false">İptal</button>
+                                    <button type="submit" class="btn btn-primary" :disabled="submitLoading">
+                                        {{ submitLoading ? 'İşleniyor...' : 'Teslim Al' }}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+        </teleport>
+
+        <!-- Onarım Onaylama/Reddetme Modal -->
+        <teleport to="#app">
+            <transition name="fade">
+                <div v-if="showApproveModal" class="fixed inset-0 bg-[black]/60 z-[999] flex items-center justify-center px-4">
+                    <div class="panel border-0 p-0 rounded-lg overflow-hidden w-full max-w-lg">
+                        <div class="flex bg-[#fbfbfb] dark:bg-[#121c2c] items-center justify-between px-5 py-3">
+                            <h5 class="font-bold text-lg">{{ approveForm.isApproved ? 'Onarımı Onayla' : 'Onarımı Reddet' }}</h5>
+                            <button type="button" class="text-white-dark hover:text-dark" @click="showApproveModal = false">
+                                <icon-x />
+                            </button>
+                        </div>
+                        <div class="p-5">
+                            <form @submit.prevent="submitApproveReject">
+                                <div class="mb-5">
+                                    <label class="form-label">Ürün: {{ selectedItem?.productName }}</label>
+                                </div>
+                                <div class="mb-5">
+                                    <label class="form-label">Seri Numarası: {{ selectedItem?.serialNumber }}</label>
+                                </div>
+                                <div class="mb-5">
+                                    <label for="approveNotes" class="form-label">{{ approveForm.isApproved ? 'Onaylama Nedeni' : 'Reddetme Nedeni' }}</label>
+                                    <textarea id="approveNotes" class="form-textarea" v-model="approveForm.notes" rows="3" 
+                                              :placeholder="approveForm.isApproved ? 'Onarım onaylama notları...' : 'Onarım reddetme nedeni (zorunlu)...'" required></textarea>
+                                </div>
+                                <div class="flex justify-end items-center mt-8">
+                                    <button type="button" class="btn btn-outline-danger ltr:mr-2 rtl:ml-2" @click="showApproveModal = false">İptal</button>
+                                    <button type="submit" class="btn" :class="approveForm.isApproved ? 'btn-success' : 'btn-danger'" :disabled="submitLoading">
+                                        {{ submitLoading ? 'İşleniyor...' : (approveForm.isApproved ? 'Onarımı Onayla' : 'Onarımı Reddet') }}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+        </teleport>
+
+        <!-- Montaj Modal -->
+        <teleport to="#app">
+            <transition name="fade">
+                <div v-if="showInstallModal" class="fixed inset-0 bg-[black]/60 z-[999] flex items-center justify-center px-4">
+                    <div class="panel border-0 p-0 rounded-lg overflow-hidden w-full max-w-lg">
+                        <div class="flex bg-[#fbfbfb] dark:bg-[#121c2c] items-center justify-between px-5 py-3">
+                            <h5 class="font-bold text-lg">Ürün Montaj Yap</h5>
+                            <button type="button" class="text-white-dark hover:text-dark" @click="showInstallModal = false">
+                                <icon-x />
+                            </button>
+                        </div>
+                        <div class="p-5">
+                            <form @submit.prevent="submitInstallItem">
+                                <div class="mb-5">
+                                    <label class="form-label">Ürün: {{ selectedItem?.productName }}</label>
+                                </div>
+                                <div class="mb-5">
+                                    <label class="form-label">Seri Numarası: {{ selectedItem?.serialNumber }}</label>
+                                </div>
+                                <div class="mb-5">
+                                    <label for="installLocation" class="form-label">Montaj Lokasyonu</label>
+                                    <input id="installLocation" type="text" class="form-input" v-model="installForm.location" 
+                                           placeholder="Montaj yapılan yer (Oda, Bina vb.)" required />
+                                </div>
+                                <div class="mb-5">
+                                    <label for="installNotes" class="form-label">Notlar</label>
+                                    <textarea id="installNotes" class="form-textarea" v-model="installForm.notes" rows="3" placeholder="Montaj notları..."></textarea>
+                                </div>
+                                <div class="mb-5">
+                                    <div class="flex items-center">
+                                        <input id="installRemoveFromStock" type="checkbox" class="form-checkbox" v-model="installForm.removeFromStock" />
+                                        <label for="installRemoveFromStock" class="text-sm ltr:ml-2 rtl:mr-2">Ürünü stoktan düş</label>
+                                    </div>
+                                    <p class="text-xs text-gray-500 mt-1">Bu seçenek işaretlenirse, ürün envanterden çıkarılacaktır.</p>
+                                </div>
+                                <div class="flex justify-end items-center mt-8">
+                                    <button type="button" class="btn btn-outline-danger ltr:mr-2 rtl:ml-2" @click="showInstallModal = false">İptal</button>
+                                    <button type="submit" class="btn btn-primary" :disabled="submitLoading">
+                                        {{ submitLoading ? 'İşleniyor...' : 'Montaj Yap' }}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+        </teleport>
+    </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted, watch } from 'vue';
+import { useRoute } from 'vue-router';
+import { useAppStore } from '@/stores/index';
+import { useAuthStore } from '@/stores/auth-store';
+import IconX from '@/components/icon/icon-x.vue';
+
+// Store'lar
+const appStore = useAppStore();
+const authStore = useAuthStore();
+const route = useRoute();
+
+// Meta veri
+document.title = 'Onarılan Ürünler - UGES STOK';
+
+// Durum değişkenleri
+const loading = ref(false);
+const submitLoading = ref(false);
+const search = ref('');
+const statusFilter = ref('');
+const repairedItems = ref<any[]>([]);
+const showReceiveModal = ref(false);
+const showApproveModal = ref(false);
+const showInstallModal = ref(false);
+const selectedItem = ref<any>(null);
+
+// Form değişkenleri
+const receiveForm = ref({
+    notes: ''
+});
+
+const approveForm = ref({
+    isApproved: true,
+    notes: ''
+});
+
+const installForm = ref({
+    location: '',
+    notes: '',
+    removeFromStock: true
+});
+
+// Filtrelenmiş ürünler
+const filteredRepairedItems = computed(() => {
+    if (!repairedItems.value || repairedItems.value.length === 0) return [];
+
+    let result = repairedItems.value;
+    
+    // Arama filtresi
+    if (search.value.trim()) {
+        const searchTerm = search.value.toLowerCase().trim();
+        result = result.filter(item => {
+            return item.serialNumber?.toLowerCase().includes(searchTerm) || 
+                   item.productName?.toLowerCase().includes(searchTerm);
+        });
+    }
+    
+    // Durum filtresi
+    if (statusFilter.value) {
+        result = result.filter(item => item.status === statusFilter.value);
+    }
+    
+    return result;
+});
+
+// Durum çevirisi
+function translateStatus(status: string): string {
+    switch (status) {
+        case 'repair_completed': return 'Onarım Tamamlandı';
+        case 'in_transit': return 'Depoya Yolda';
+        case 'received': return 'Teslim Alındı';
+        case 'approved': return 'Onarım Onaylandı';
+        case 'rejected': return 'Onarım Reddedildi';
+        case 'installed': return 'Montaj Yapıldı';
+        default: return status;
+    }
+}
+
+// Sayfa yüklendiğinde
+onMounted(async () => {
+    // Yetki kontrolü
+    if (!authStore.isAdmin && !authStore.isProjectAdmin && !authStore.isWarehouseManager) {
+        appStore.showMessage('Bu sayfaya erişim yetkiniz bulunmuyor.', 'error');
+        return;
+    }
+    
+    // Onarılan ürünleri yükle
+    await loadRepairedItems();
+});
+
+// Onarılan ürünleri yükle
+async function loadRepairedItems() {
+    try {
+        loading.value = true;
+        
+        // Kullanıcının erişime sahip olduğu depolardaki onarılmış ürünleri al
+        const repairService = (await import('../../services/repairService')).default;
+        
+        // Sadece belirli durumları getir
+        const items = await repairService.getRepairedItemsForWarehouse(['repair_completed', 'in_transit', 'received', 'approved']);
+        
+        repairedItems.value = items;
+        
+    } catch (error) {
+        console.error('Onarılmış ürünler yüklenirken hata:', error);
+        appStore.showMessage('Onarılmış ürünler yüklenirken bir hata oluştu.', 'error');
+    } finally {
+        loading.value = false;
+    }
+}
+
+// Onarılmış ürünü teslim alma
+function receiveRepairedItem(item: any) {
+    selectedItem.value = item;
+    receiveForm.value.notes = '';
+    showReceiveModal.value = true;
+}
+
+// Teslim alma işlemini onayla
+async function submitReceiveItem() {
+    if (!selectedItem.value) return;
+    
+    try {
+        submitLoading.value = true;
+        
+        const repairService = (await import('../../services/repairService')).default;
+        await repairService.receiveRepairedItem(
+            selectedItem.value.id,
+            receiveForm.value.notes
+        );
+        
+        appStore.showMessage('Ürün başarıyla teslim alındı.', 'success');
+        showReceiveModal.value = false;
+        
+        // Listeyi yeniden yükle
+        await loadRepairedItems();
+        
+    } catch (error) {
+        console.error('Ürün teslim alınırken hata:', error);
+        appStore.showMessage('Ürün teslim alınırken bir hata oluştu.', 'error');
+    } finally {
+        submitLoading.value = false;
+    }
+}
+
+// Onarımı onaylama modalını aç
+function approveRepairedItem(item: any) {
+    selectedItem.value = item;
+    approveForm.value = {
+        isApproved: true,
+        notes: ''
+    };
+    showApproveModal.value = true;
+}
+
+// Onarımı reddetme modalını aç
+function rejectRepairedItem(item: any) {
+    selectedItem.value = item;
+    approveForm.value = {
+        isApproved: false,
+        notes: ''
+    };
+    showApproveModal.value = true;
+}
+
+// Onarım onaylama/reddetme işlemini gerçekleştir
+async function submitApproveReject() {
+    if (!selectedItem.value) return;
+    
+    try {
+        submitLoading.value = true;
+        
+        const repairService = (await import('../../services/repairService')).default;
+        await repairService.approveOrRejectRepair(
+            selectedItem.value.id,
+            approveForm.value.isApproved,
+            approveForm.value.notes
+        );
+        
+        appStore.showMessage(
+            approveForm.value.isApproved ? 'Onarım başarıyla onaylandı.' : 'Onarım reddedildi.',
+            approveForm.value.isApproved ? 'success' : 'warning'
+        );
+        showApproveModal.value = false;
+        
+        // Listeyi yeniden yükle
+        await loadRepairedItems();
+        
+    } catch (error) {
+        console.error('Onarım işlemi gerçekleştirilirken hata:', error);
+        appStore.showMessage('İşlem gerçekleştirilirken bir hata oluştu.', 'error');
+    } finally {
+        submitLoading.value = false;
+    }
+}
+
+// Ürün montaj modalını aç
+function installRepairedItem(item: any) {
+    selectedItem.value = item;
+    installForm.value = {
+        location: '',
+        notes: '',
+        removeFromStock: true
+    };
+    showInstallModal.value = true;
+}
+
+// Ürün montaj işlemini gerçekleştir
+async function submitInstallItem() {
+    if (!selectedItem.value) return;
+    
+    try {
+        submitLoading.value = true;
+        
+        const repairService = (await import('../../services/repairService')).default;
+        await repairService.installRepairedItem(
+            selectedItem.value.id,
+            installForm.value.location,
+            installForm.value.notes,
+            installForm.value.removeFromStock
+        );
+        
+        appStore.showMessage('Ürün başarıyla montaj yapıldı.', 'success');
+        showInstallModal.value = false;
+        
+        // Listeyi yeniden yükle
+        await loadRepairedItems();
+        
+    } catch (error) {
+        console.error('Ürün montaj işlemi gerçekleştirilirken hata:', error);
+        appStore.showMessage('Montaj işlemi gerçekleştirilirken bir hata oluştu.', 'error');
+    } finally {
+        submitLoading.value = false;
+    }
+}
+</script>

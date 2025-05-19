@@ -33,8 +33,12 @@
                                 <select class="form-select" v-model="seciliKullaniciTipi">
                                     <option value="">Tüm Kullanıcı Tipleri</option>
                                     <option value="admin">Admin</option>
+                                    <option value="proje_admin">Proje Admin</option>
                                     <option value="user">Depo Sorumlusu</option>
-                                    <option value="observer">Depo İzleyicisi</option>
+                                    <option value="proje_sorumlusu">Proje Sorumlusu</option>
+                                    <option value="proje_it_sorumlusu">Proje IT Sorumlusu</option>
+                                    <option value="onarim_merkezi_sorumlusu">Onarım Merkezi Sorumlusu</option>
+                                    <option value="onarim_kullanici">Onarım Kullanıcısı</option>
                                 </select>
                             </div>
                         </div>
@@ -76,8 +80,12 @@
                                         <span
                                             :class="{
                                                 'badge bg-primary': (kullanici as ValidUser).role === 'admin',
-                                                'badge bg-success': (kullanici as ValidUser).role === 'user',
-                                                'badge bg-warning': (kullanici as ValidUser).role === 'observer',
+                                                'badge bg-info': (kullanici as ValidUser).role === 'proje_admin',
+                                                'badge bg-success': (kullanici as ValidUser).role === 'user' || (kullanici as ValidUser).role === 'depo_sorumlusu',
+                                                'badge bg-purple': (kullanici as ValidUser).role === 'proje_sorumlusu',
+                                                'badge bg-info-light': (kullanici as ValidUser).role === 'proje_it_sorumlusu',
+                                                'badge bg-danger': (kullanici as ValidUser).role === 'onarim_merkezi_sorumlusu',
+                                                'badge bg-danger-light': (kullanici as ValidUser).role === 'onarim_kullanici'
                                             }"
                                         >
                                             {{ kullaniciTipiGetir((kullanici as ValidUser).role || '') }}
@@ -203,9 +211,24 @@
                                     <label for="role">Kullanıcı Tipi <span class="text-danger">*</span></label>
                                     <select id="role" class="form-select" v-model="yeniKullanici.role" required :disabled="duzenlemeModu && yeniKullanici.email === 'deneme@deneme.com'">
                                         <option value="" disabled>Seçiniz</option>
-                                        <option value="admin">Admin</option>
-                                        <option value="user">Depo Sorumlusu</option>
-                                        <option value="observer">Depo İzleyicisi</option>
+                                        <!-- Admin ise tüm kullanıcı tiplerini göster -->
+                                        <template v-if="authStore.isAdmin">
+                                            <option value="admin">Admin</option>
+                                            <option value="proje_admin">Proje Admin</option>
+                                            <option value="user">Kullanıcı</option>
+                                            <option value="depo_sorumlusu">Depo Sorumlusu</option>
+                                            <option value="proje_sorumlusu">Proje Sorumlusu</option>
+                                            <option value="proje_it_sorumlusu">Proje IT Sorumlusu</option>
+                                            <option value="onarim_merkezi_sorumlusu">Onarım Merkezi Sorumlusu</option>
+                                            <option value="onarim_kullanici">Onarım Kullanıcısı</option>
+                                        </template>
+                                        <!-- Proje Admin ise sadece sınırlı rolleri göster -->
+                                        <template v-else-if="authStore.isProjectAdmin">
+                                            <option value="user">Kullanıcı</option>
+                                            <option value="depo_sorumlusu">Depo Sorumlusu</option>
+                                            <option value="proje_sorumlusu">Proje Sorumlusu</option>
+                                            <option value="proje_it_sorumlusu">Proje IT Sorumlusu</option>
+                                        </template>
                                     </select>
                                     <span v-if="formHatalari.role" class="text-danger">{{ formHatalari.role }}</span>
                                 </div>
@@ -368,6 +391,11 @@ interface UserWithProject extends ValidUser {
     depot?: string | null;
 }
 
+// Genişletilmiş proje tipi (kullanıcılar bilgisini de içeren)
+interface ProjectWithUsers extends ProjectType {
+    users?: { userId: string; role: string }[];
+}
+
 // Formda kullanılacak kullanıcı bilgileri için veri tipi kullanılıyor
 const yeniKullanici = ref<UserWithProject>({
     email: '',
@@ -394,10 +422,13 @@ interface ProjectType {
     isActive?: boolean;
 }
 
-// Projeler için state ekleme
-const projeler = ref<ProjectType[]>([]);
+// Projeler için state genişletildi (kullanıcı bilgilerini de içerecek şekilde)
+const projeler = ref<ProjectWithUsers[]>([]);
 const projeYukleniyor = ref(false);
 const projeHata = ref('');
+
+// Her kullanıcı ID'si için proje ID'lerini tutan bir harita
+const kullaniciProjeBaglantilari = ref<{[kullaniciId: string]: string[]}>({});
 
 // Projeleri yükleme fonksiyonu iyileştirildi
 const projeleriYukle = async () => {
@@ -427,6 +458,38 @@ const projeleriYukle = async () => {
         ];
     } finally {
         projeYukleniyor.value = false;
+    }
+};
+
+// Kullanıcı projelerini yükleme fonksiyonu - Tüm kullanıcı-proje bağlantılarını yükler
+const kullaniciProjeleriniYukle = async () => {
+    try {
+        console.log('Tüm kullanıcıların proje bağlantıları yükleniyor...');
+        
+        // Önce projectService'i yükle
+        await loadProjectService();
+        
+        if (!projectService.value || typeof projectService.value.getUserProjects !== 'function') {
+            console.error('projectService tanımlı değil veya getUserProjects metodu mevcut değil');
+            return;
+        }
+        
+        // Tüm kullanıcılar için proje bağlantılarını yükle
+        for (const kullanici of kullanicilar.value) {
+            if (kullanici && kullanici.id) {
+                try {
+                    console.log(`${kullanici.email} için projeler yükleniyor...`);
+                    const userProjects = await authStore.getUserProjects(kullanici.id);
+                    kullaniciProjeBaglantilari.value[kullanici.id] = userProjects;
+                } catch (error) {
+                    console.error(`${kullanici.email} için projeler yüklenirken hata:`, error);
+                }
+            }
+        }
+        
+        console.log('Tüm kullanıcıların proje bağlantıları yüklendi:', kullaniciProjeBaglantilari.value);
+    } catch (error) {
+        console.error('Kullanıcı projeleri yüklenirken bir hata oluştu:', error);
     }
 };
 
@@ -540,6 +603,29 @@ const filtrelenmisKullanicilar = computed(() => {
     
     try {
         let sonuc = [...kullanicilar.value];
+        
+        // Proje Admin için sadece projelerindeki kullanıcıları göster
+        if (authStore.isProjectAdmin && !authStore.isAdmin) {
+            // Admin kullanıcılar hariç
+            sonuc = sonuc.filter(kullanici => (kullanici as ValidUser).role !== 'admin');
+            
+            // Kullanıcı-proje bağlantılarına göre filtrele
+            if (Object.keys(kullaniciProjeBaglantilari.value).length > 0) {
+                // Proje Admin'in yönettiği projeleri bul
+                const yonettigiProjeler = projeler.value
+                    .filter(proje => {
+                        const userInProject = proje.users?.find(u => u.userId === authStore.userInfo?.id);
+                        return userInProject && (userInProject.role === 'proje_admin' || userInProject.role === 'admin');
+                    })
+                    .map(p => p.id);
+                
+                // Kullanıcıları filtrele
+                sonuc = sonuc.filter(kullanici => {
+                    const kullaniciProjeleri = kullaniciProjeBaglantilari.value[(kullanici as ValidUser).id] || [];
+                    return kullaniciProjeleri.some(projeId => yonettigiProjeler.includes(projeId));
+                });
+            }
+        }
         
         // Arama metnine göre filtreleme
         if (aramaMetni.value) {
@@ -768,12 +854,27 @@ const kullaniciKaydet = async () => {
 };
 
 
-// Auth kontrolleri - sadece admin kullanıcının bu sayfaya erişimi olmalı
+// Auth kontrolleri - sadece admin ve proje admin kullanıcıların bu sayfaya erişimi olmalı
 const kullaniciYetkisiKontrol = () => {
-    if (!authStore.isAdmin) {
-        // Yetkisiz kullanıcıyı anasayfaya yönlendir
-        // router.push('/');
+    // Admin tüm işlemleri yapabilir
+    if (authStore.isAdmin) {
+        return true;
     }
+    
+    // Proje admin sadece kendi kullanıcılarını yönetebilir
+    if (authStore.isProjectAdmin) {
+        // Proje admin için bu sayfaya erişime izin ver, 
+        // ancak işlemleri sınırla (sadece kendi projesi için kullanıcı oluşturabilir)
+        return true;
+    }
+    
+    // Diğer kullanıcılar için erişimi engelle
+    // Anasayfaya yönlendirme - yorumladık (uygulamada aktif edilebilir)
+    // import { useRouter } from 'vue-router';
+    // const router = useRouter();
+    // router.push('/');
+    store.showMessage('Bu sayfaya erişim yetkiniz bulunmuyor', 'error');
+    return false;
 };
 
 onMounted(async () => {
@@ -886,13 +987,45 @@ const kullaniciTipiGetir = (tip: string): string => {
     switch (tip) {
         case 'admin': return 'Admin';
         case 'user': return 'Depo Sorumlusu';
-        case 'observer': return 'Gözlemci';
         case 'depo_sorumlusu': return 'Depo Sorumlusu';
-        case 'proje_admin': return 'Proje Yöneticisi';
-        case 'ariza_merkez': return 'Arıza Merkezi';
+        case 'proje_admin': return 'Proje Admin';
+        case 'proje_sorumlusu': return 'Proje Sorumlusu';
+        case 'proje_it_sorumlusu': return 'Proje IT Sorumlusu';
+        case 'onarim_merkezi_sorumlusu': return 'Onarım Merkezi Sorumlusu';
+        case 'onarim_kullanici': return 'Onarım Kullanıcısı';
         default: return tip;
     }
 };
+
+// Filtrelenmiş projeleri hesapla - Proje Admin sadece kendi projelerini görebilir
+// Proje adminin yönettiği projeleri bulan bir yardımcı fonksiyon
+const getProjeAdminYonettigiProjeler = () => {
+    return projeler.value
+        .filter(proje => {
+            const userInProject = proje.users?.find(u => u.userId === authStore.userInfo?.id);
+            return userInProject && (userInProject.role === 'proje_admin' || userInProject.role === 'admin');
+        })
+        .map(p => p.id);
+};
+
+const filtrelenmisProjectOptions = computed(() => {
+    // Eğer admin ise tüm projeleri göster
+    if (authStore.isAdmin) {
+        return projeler.value;
+    }
+    
+    // Eğer proje admin ise sadece yönettiği projeleri göster
+    if (authStore.isProjectAdmin) {
+        return projeler.value.filter(proje => {
+            // Proje içinde kullanıcının rolünü kontrol et
+            const userInProject = proje.users?.find(u => u.userId === authStore.userInfo?.id);
+            return userInProject && (userInProject.role === 'proje_admin' || userInProject.role === 'admin');
+        });
+    }
+    
+    // Diğer kullanıcılar için tüm projeleri göster (normalde bu kısım çalışmaz)
+    return projeler.value;
+});
 
 // Kullanıcı-Proje ilişkilerini güncelleyen yardımcı fonksiyon
 const kullaniciProjeIliskileriniGuncelle = async (userId: string, yeniProjeIdleri: string[], eskiProjeIdleri: string[] = []) => {

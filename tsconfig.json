@@ -22,7 +22,8 @@
             "@intlify/unplugin-vue-i18n/messages",
             "vite/client", // Vite tiplemeleri eklendi
             "@types/node" // Node.js tiplemeleri eklendi
-        ]
+        ],
+        "outDir": "dist"
     },
     "include": [
         "src/**/*.js",

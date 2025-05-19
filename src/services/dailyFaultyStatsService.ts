@@ -50,7 +50,7 @@ export default {
             const currentWeekSnapshot = await getDocs(currentWeekQuery);
             
             // Son 7 günün tarihlerini oluştur
-            const last7Days = [];
+            const last7Days: Date[] = [];
             for (let i = 6; i >= 0; i--) {
                 const date = new Date(today);
                 date.setDate(today.getDate() - i);

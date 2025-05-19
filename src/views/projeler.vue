@@ -6,7 +6,12 @@
                     <h5 class="font-semibold text-lg dark:text-white-light mr-2">Proje Yönetimi</h5>
                     <span v-if="projectStore.loading" class="animate-spin border-2 border-primary border-l-transparent rounded-full w-5 h-5 inline-block align-middle"></span>
                 </div>
-                <button type="button" class="btn btn-primary" @click="openProjectModal('add')">
+                <button 
+                    type="button" 
+                    class="btn btn-primary" 
+                    @click="openProjectModal('add')"
+                    v-if="canManageProjects"
+                >
                     <span class="material-icons-outlined" add></span> Yeni Proje
                 </button>
             </div>
@@ -38,17 +43,37 @@
                                 </td>
                                 <td>
                                     <div class="flex items-center gap-2">
-                                        <button type="button" class="btn btn-sm btn-outline-primary" @click="openProjectModal('edit', project)">
+                                        <button 
+                                            type="button" 
+                                            class="btn btn-sm btn-outline-primary" 
+                                            @click="openProjectModal('edit', project)"
+                                            v-if="canManageProjects"
+                                        >
                                             <span class="material-icons-outlined text-sm">Düzenle</span>
                                         </button>
-                                        <button type="button" class="btn btn-sm btn-outline-info" @click="openUserProjectModal(project)">
+                                        <button 
+                                            type="button" 
+                                            class="btn btn-sm btn-outline-info" 
+                                            @click="openUserProjectModal(project)"
+                                            v-if="canManageProjectUsers"
+                                        >
                                             <span class="material-icons-outlined text-sm">Kullanıcılar</span>
                                         </button>
                                         <!-- Depo yönetimi butonu -->
-                                        <button type="button" class="btn btn-sm btn-outline-success" @click="openWarehouseProjectModal(project)">
+                                        <button 
+                                            type="button" 
+                                            class="btn btn-sm btn-outline-success" 
+                                            @click="openWarehouseProjectModal(project)"
+                                            v-if="canManageProjects || canManageProjectWarehouses"
+                                        >
                                             <span class="material-icons-outlined text-sm">Depolar</span>
                                         </button>
-                                        <button type="button" class="btn btn-sm btn-outline-danger" @click="confirmDeleteProject(project)">
+                                        <button 
+                                            type="button" 
+                                            class="btn btn-sm btn-outline-danger" 
+                                            @click="confirmDeleteProject(project)"
+                                            v-if="canManageProjects"
+                                        >
                                             <span class="material-icons-outlined text-sm">Sil</span>
                                         </button>
                                     </div>
@@ -122,7 +147,7 @@
                     </div>
                     
                     <!-- Kullanıcı Ekleme Formu -->
-                    <div class="mb-5 border-b pb-5">
+                    <div class="mb-5 border-b pb-5" v-if="canManageProjectUsers">
                         <h6 class="font-semibold mb-3">Kullanıcı Ekle</h6>
                         <form @submit.prevent="addUserToProject">
                             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -140,9 +165,11 @@
                                     <select id="role" class="form-select" v-model="userProjectForm.role" required>
                                         <option value="admin">Admin</option>
                                         <option value="proje_admin">Proje Admin</option>
+                                        <option value="proje_sorumlusu">Proje Sorumlusu</option>
+                                        <option value="proje_it_sorumlusu">IT Sorumlusu</option>
+                                        <option value="depo_sorumlusu">Depo Sorumlusu</option>
                                         <option value="user">Normal Kullanıcı</option>
                                         <option value="observer">Gözlemci</option>
-                                        <option value="depo_sorumlusu">Depo Sorumlusu</option>
                                     </select>
                                 </div>
                                 <div class="flex items-end">
@@ -176,12 +203,15 @@
                                             <select 
                                                 class="form-select form-select-sm" 
                                                 v-model="user.projectRole"
-                                                @change="updateUserProjectRole(user.id, user.projectRole || 'user')">
+                                                @change="updateUserProjectRole(user.id, user.projectRole || 'user')"
+                                                :disabled="!canManageProjectUsers">
                                                 <option value="admin">Admin</option>
                                                 <option value="proje_admin">Proje Admin</option>
+                                                <option value="proje_sorumlusu">Proje Sorumlusu</option>
+                                                <option value="proje_it_sorumlusu">IT Sorumlusu</option>
+                                                <option value="depo_sorumlusu">Depo Sorumlusu</option>
                                                 <option value="user">Normal Kullanıcı</option>
                                                 <option value="observer">Gözlemci</option>
-                                                <option value="depo_sorumlusu">Depo Sorumlusu</option>
                                             </select>
                                         </td>
                                         <td>
@@ -189,7 +219,7 @@
                                                 type="button" 
                                                 class="btn btn-sm btn-outline-danger"
                                                 @click="confirmRemoveUserFromProject(user)"
-                                                :disabled="user.id === authStore.userInfo?.id">
+                                                :disabled="user.id === authStore.userInfo?.id || !canManageProjectUsers">
                                                 <span class="material-icons-outlined text-sm">Kullanıcıyı Sil</span>
                                             </button>
                                         </td>
@@ -217,7 +247,7 @@
                     </div>
                     
                     <!-- Depo Ekleme Formu -->
-                    <div class="mb-5 border-b pb-5">
+                    <div class="mb-5 border-b pb-5" v-if="canManageProjectWarehouses">
                         <h6 class="font-semibold mb-3">Depo Ekle</h6>
                         <form @submit.prevent="addWarehouseToProject">
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -291,6 +321,7 @@ import { ref, reactive, onMounted, computed } from 'vue';
 import { useAuthStore } from '@/stores/auth-store';
 import { useProjectStore } from '@/stores/projects';
 import projectService from '@/services/projectService';
+import PermissionService, { Permission, UserRole as PermRole } from '@/services/permissionService';
 
 // Auth store'u başlat
 const authStore = useAuthStore();
@@ -355,6 +386,21 @@ const allUsers = ref<UserInterface[]>([]);
 const projectWarehouses = ref<WarehouseInterface[]>([]);
 const allWarehouses = ref<WarehouseInterface[]>([]);
 const loading = ref(false);
+
+// İzin kontrolleri için computed değişkenler
+const canManageProjects = computed(() => {
+    return PermissionService.hasPermission(Permission.MANAGE_PROJECTS);
+});
+
+const canManageProjectUsers = computed(() => {
+    return PermissionService.hasPermission(Permission.MANAGE_PROJECT_USERS) || 
+           PermissionService.hasPermission(Permission.MANAGE_USERS);
+});
+
+const canManageProjectWarehouses = computed(() => {
+    return PermissionService.hasPermission(Permission.MANAGE_PROJECTS) || 
+           PermissionService.hasPermission(Permission.MANAGE_INVENTORY);
+});
 
 // Projede olmayan kullanıcıları hesapla
 const availableUsers = computed(() => {

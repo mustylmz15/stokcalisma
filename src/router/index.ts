@@ -12,6 +12,26 @@ const routes: RouteRecordRaw[] = [
         component: () => import('../views/index.vue'),
         meta: { layout: 'app' }
     },
+
+    // Depo kullanıcısı rotaları
+    {
+        path: '/warehouse-user/dashboard',
+        name: 'warehouse-user-dashboard',
+        component: () => import(/* webpackChunkName: "warehouse-user-dashboard" */ '../views/warehouse-user/dashboard.vue'),
+        meta: { requiresAuth: true, layout: 'app' }
+    },
+    {
+        path: '/warehouse-user/products/:id',
+        name: 'warehouse-user-products',
+        component: () => import(/* webpackChunkName: "warehouse-user-products" */ '../views/warehouse-user/products.vue'),
+        meta: { requiresAuth: true, layout: 'app' }
+    },
+    {
+        path: '/warehouse-user/repaired-items',
+        name: 'warehouse-user-repaired-items',
+        component: () => import(/* webpackChunkName: "warehouse-user-repaired-items" */ '../views/warehouse-user/repaired-items.vue'),
+        meta: { requiresAuth: true, layout: 'app' }
+    },
     
     // authentication
     {
@@ -256,6 +276,27 @@ const routes: RouteRecordRaw[] = [
         component: () => import(/* webpackChunkName: "inventory-warehouses" */ '../views/inventory/warehouses/list.vue'),
         meta: { requiresAuth: true }  // Everyone can access but will be filtered by permissions
     },
+
+    // Proje Admin sayfaları
+    {
+        path: '/project-admin/project-products',
+        name: 'project-admin-project-products',
+        component: () => import(/* webpackChunkName: "project-admin-project-products" */ '../views/project-admin/project-products.vue'),
+        meta: { requiresAuth: true, layout: 'app' }
+    },
+    {
+        path: '/project-admin/material-requests',
+        name: 'project-admin-material-requests',
+        component: () => import(/* webpackChunkName: "project-admin-material-requests" */ '../views/project-admin/material-requests.vue'),
+        meta: { requiresAuth: true, layout: 'app' }
+    },
+    {
+        path: '/project-admin/warehouse-transfers',
+        name: 'project-admin-warehouse-transfers',
+        component: () => import(/* webpackChunkName: "project-admin-warehouse-transfers" */ '../views/project-admin/warehouse-transfers.vue'),
+        meta: { requiresAuth: true, layout: 'app' }
+    },
+    
     {
         path: '/inventory/reports',
         name: 'inventory-reports',
@@ -306,8 +347,23 @@ router.beforeEach(async (to, from, next) => {
     // @ts-ignore - Hidrasyon hatalarını bastır
     window.__VUE_PROD_DEVTOOLS__ = false;
 
+    // Çıkış sonrası kullanıcı bilgilerini tekrar kontrol et
+    // Eğer localStorage'da token yoksa, kullanıcıyı çıkış yapmış kabul et
+    const token = localStorage.getItem('token');
+    const userData = localStorage.getItem('user');
+    
+    if (!token || !userData) {
+        authStore.isLoggedIn = false;
+        authStore.userInfo = null;
+        
+        // Eğer kimlik doğrulaması gerektiren bir sayfaya gidiliyorsa ve token yoksa
+        if (to.meta.requiresAuth) {
+            return next({ path: '/auth/boxed-signin', query: { redirect: to.fullPath } });
+        }
+    }
+
     // Firebase Auth listener'ın başlatıldığından emin olun
-    if (!authStore.authReady) {
+    if (!authStore.authReady && authStore.isLoggedIn) {
         // initAuthListener metodunu çağır
         authStore.initAuthListener();
     }
@@ -323,14 +379,34 @@ router.beforeEach(async (to, from, next) => {
     // Kimlik doğrulama kontrolü
     // Eğer kimlik doğrulama gerektiren bir route'a gidiliyorsa ve kullanıcı giriş yapmamışsa
     if (to.meta.requiresAuth && !authStore.isLoggedIn) {
-        // Kullanıcı oturumunu kontrol et
-        const loggedIn = await authStore.checkSession();
-        
-        if (loggedIn) {
-            // Eğer oturum varsa, istenen sayfaya yönlendir
-            return next();
+        // localStorage'dan hızlı kontrol
+        if (token && userData) {
+            // Kullanıcı durumunu güncelle
+            try {
+                authStore.userInfo = JSON.parse(userData);
+                authStore.isLoggedIn = true;
+            } catch (e) {
+                // JSON parse hatası varsa temizle
+                localStorage.removeItem('user');
+                localStorage.removeItem('token');
+                return next({ path: '/auth/boxed-signin', query: { redirect: to.fullPath } });
+            }
+            
+            // Tam oturum kontrolü
+            const loggedIn = await authStore.checkSession().catch(() => false);
+            
+            if (loggedIn) {
+                // Eğer oturum varsa, istenen sayfaya yönlendir
+                return next();
+            } else {
+                // Oturum yoksa login sayfasına yönlendir, ama hedef URL'i kaydet
+                return next({
+                    path: '/auth/boxed-signin',
+                    query: { redirect: to.fullPath }
+                });
+            }
         } else {
-            // Oturum yoksa login sayfasına yönlendir, ama hedef URL'i kaydet
+            // Token ve userData yoksa login'e yönlendir
             return next({
                 path: '/auth/boxed-signin',
                 query: { redirect: to.fullPath }
@@ -338,13 +414,25 @@ router.beforeEach(async (to, from, next) => {
         }
     }
 
-    // Admin gerektiren sayfalara erişim kontrolü
-    if (to.meta.requiresAdmin && !authStore.isAdmin) {
-        return next({ name: 'home' });
+    // Admin gerektiren sayfalara erişim kontrolü - çift kontrol
+    if (to.meta.requiresAdmin) {
+        // Admin rolü kontrolü için hızlı bir kontrol yapalım
+        const isAdmin = authStore.isAdmin || 
+            (authStore.userInfo && 
+             (authStore.userInfo.role === 'admin' || 
+              (authStore.userInfo.roles && authStore.userInfo.roles.includes('admin'))
+             )
+            );
+            
+        if (!isAdmin) {
+            console.warn('Admin yetkisi gerektiren sayfaya erişim engellendi:', to.path);
+            return next({ name: 'home' });
+        }
     }
 
     // Kullanıcı giriş yapmışsa ve login sayfasına gitmeye çalışıyorsa
-    if (authStore.isLoggedIn && to.path.includes('/auth/')) {
+    if (token && userData && to.path.includes('/auth/')) {
+        console.log('Giriş yapmış kullanıcı auth sayfasına yönlendirilemez, ana sayfaya yönlendirildi');
         // Kullanıcı zaten giriş yapmışsa ana sayfaya yönlendir
         return next({ name: 'home' });
     }

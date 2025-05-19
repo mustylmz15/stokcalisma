@@ -286,7 +286,7 @@
                     </div>
 
                     <div class="dropdown shrink-0">
-                        <Popper :placement="store.rtlClass === 'rtl' ? 'bottom-end' : 'bottom-start'" offsetDistance="8" class="!block align-middle">
+                        <Popper :placement="store.rtlClass === 'rtl' ? 'bottom-end' : 'bottom-start'" offsetDistance="8" class="align-middle">
                             <button type="button" class="relative group block">
                                 <img
                                     class="w-9 h-9 rounded-full object-cover saturate-50 group-hover:saturate-100"
@@ -303,7 +303,17 @@
                                             </div>
                                             <div class="ltr:pl-4 rtl:pr-4 truncate">
                                                 <h4 class="text-base">
-                                                    {{ authStore.userInfo?.name || 'Kullanıcı' }}<span class="text-xs bg-success-light rounded text-success px-1 ltr:ml-2 rtl:ml-2">{{ authStore.userInfo?.role === 'admin' ? 'Admin' : authStore.userInfo?.role === 'depo_sorumlusu' ? 'Depo' : authStore.userInfo?.role === 'observer' ? 'Gözlemci' : 'Kullanıcı' }}</span>
+                                                    {{ authStore.userInfo?.name || 'Kullanıcı' }}<span class="text-xs bg-success-light rounded text-success px-1 ltr:ml-2 rtl:ml-2">
+                                                        {{
+                                                            authStore.userInfo?.role === 'proje_admin' ? 'Proje Admin' :
+                                                            authStore.userInfo?.role === 'proje_sorumlusu' ? 'Proje Sorumlusu' :
+                                                            authStore.userInfo?.role === 'proje_it_sorumlusu' ? 'Proje IT Sorumlusu' :
+                                                            authStore.userInfo?.role === 'onarim_merkezi_sorumlusu' ? 'Onarım Merkezi Sorumlusu' :
+                                                            authStore.userInfo?.role === 'onarim_kullanici' ? 'Onarım Kullanıcı' :
+                                                            authStore.userInfo?.role === 'user' ? 'Kullanıcı' :
+                                                            'Kullanıcı'
+                                                        }}
+                                                    </span>
                                                 </h4>
                                                 <a class="text-black/60 hover:text-primary dark:text-dark-light/60 dark:hover:text-white" href="javascript:;">
                                                     {{ authStore.userInfo?.email || '' }}
@@ -866,7 +876,7 @@
 </template>
 
 <script lang="ts" setup>
-    import { ref, onMounted, computed, watch } from 'vue';
+    import { ref, onMounted, computed, watch, nextTick } from 'vue';
     // useI18n import yerine direkt i18n modülünü import ediyoruz
     import i18n from '@/i18n';
     import appSetting from '@/app-setting';
@@ -1012,10 +1022,21 @@
 
     const handleSignOut = async () => {
         try {
-            await authStore.signOut(); // logout yerine signOut kullanmalıyız
-            router.push('/auth/boxed-signin');
+            // Önce sayfadan ayrıl, sonra signOut işlemini yap
+            localStorage.removeItem('user'); // Oturum bilgilerini hemen sil
+            localStorage.removeItem('token');
+            
+            // URL'yi doğrudan değiştirerek sayfadan çık - Vue Router'ı atlayarak
+            window.location.href = '/auth/boxed-signin';
+            
+            // Arka planda çıkış işlemlerini yürüt
+            authStore.signOut().catch(err => {
+                console.error('Arka planda çıkış işleminde hata:', err);
+            });
         } catch (error) {
             console.error('Çıkış yapılırken hata oluştu:', error);
+            // Hata durumunda da giriş sayfasına yönlendir
+            window.location.href = '/auth/boxed-signin';
         }
     };
 </script>

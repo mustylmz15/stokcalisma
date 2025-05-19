@@ -93,6 +93,17 @@ export const useProjectStore = defineStore('projects', () => {
                 if (authStore.isAdmin) {
                     // Admin kullanıcılar için tüm projeleri getir
                     userProjects = await projectService.getAllProjects();
+                } else if (authStore.userInfo.role === 'proje_admin') {
+                    // Proje admin için sadece kendisinin admin olduğu projeleri getir
+                    const allUserProjects = await projectService.getUserProjects(authStore.userInfo.id);
+                    
+                    // Proje admin'in sadece yetkili olduğu projeler
+                    userProjects = allUserProjects.filter(project => {
+                        const userInProject = project.users?.find(u => u.userId === authStore.userInfo?.id);
+                        return userInProject && (userInProject.role === 'proje_admin' || userInProject.role === 'admin');
+                    });
+                    
+                    console.log(`Proje Admin için ${userProjects.length} proje yüklendi`);
                 } else {
                     // Normal kullanıcılar için sadece kendi projelerini getir
                     userProjects = await projectService.getUserProjects(authStore.userInfo.id);
@@ -224,7 +235,7 @@ export const useProjectStore = defineStore('projects', () => {
     
     async function deleteProject(projectId: string) {
         if (!authStore.isAdmin) {
-            error.value = 'Bu işlem için yetkiniz yok';
+            error.value = 'Bu işlem için yetkiniz yok. Sadece sistem yöneticileri proje silebilir.';
             return false;
         }
         

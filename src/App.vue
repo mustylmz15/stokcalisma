@@ -51,7 +51,7 @@
     });
     
     // meta
-    useMeta({ title: 'Sales Admin' });
+    useMeta({ title: 'ABY Admin' });
     
     const mainLayout = computed(() => {
         return store.mainLayout === 'auth' ? authLayout : appLayout;
