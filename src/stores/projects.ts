@@ -14,8 +14,8 @@ interface ProjectService {
     getUserProjectRole(userId: string, projectId: string): Promise<string | null>;
 }
 
-import projectService from '@/services/projectService';
-import { Project } from '@/services/projectService';
+import projectService from '@/services/projects/projectService';
+import { Project } from '@/services/projects/projectService';
 import { useAuthStore } from './auth-store';
 
 export const useProjectStore = defineStore('projects', () => {

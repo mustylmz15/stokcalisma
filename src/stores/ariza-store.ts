@@ -3,7 +3,7 @@ import { ref, computed } from 'vue';
 import { doc, collection, getDocs, getDoc, setDoc, updateDoc, deleteDoc, query, where, Timestamp, orderBy } from 'firebase/firestore';
 import { db } from '@/firebase';
 import { useAuthStore } from './auth-store';
-import serializedInventoryService from '@/services/serializedInventoryService';
+import serializedInventoryService from '@/services/inventory/serializedInventoryService';
 
 // Arızalı ürün kayıt tipi tanımı
 export interface FaultyProductRecord {

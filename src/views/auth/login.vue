@@ -285,7 +285,7 @@ try {
             console.error('Project store modülü yüklenemedi:', error);
         });
     
-    import('@/services/projectService')
+    import('@/services/projects/projectService')
         .then(serviceModule => {
             projectService = serviceModule.default;
         })

@@ -320,8 +320,8 @@
 import { ref, reactive, onMounted, computed } from 'vue';
 import { useAuthStore } from '@/stores/auth-store';
 import { useProjectStore } from '@/stores/projects';
-import projectService from '@/services/projectService';
-import PermissionService, { Permission, UserRole as PermRole } from '@/services/permissionService';
+import projectService from '@/services/projects/projectService';
+import PermissionService, { Permission, UserRole as PermRole } from '@/services/permissions/permissionService';
 
 // Auth store'u başlat
 const authStore = useAuthStore();

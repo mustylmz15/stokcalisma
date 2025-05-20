@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import projectService from '@/services/projectService';
+import projectService from '@/services/projects/projectService';
 import { useAuthStore } from './auth-store';
 export const useProjectStore = defineStore('projects', () => {
     // State

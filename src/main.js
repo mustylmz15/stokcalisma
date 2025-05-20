@@ -7,7 +7,7 @@ import { createPinia } from 'pinia';
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate';
 import { auth } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import inventoryService from '@/services/inventoryService';
+import inventoryService from '@/services/inventory/inventoryService';
 import router from '@/router';
 import '@/assets/css/app.css';
 import { PerfectScrollbarPlugin } from 'vue3-perfect-scrollbar';

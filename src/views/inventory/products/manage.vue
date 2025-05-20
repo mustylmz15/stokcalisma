@@ -462,7 +462,7 @@ import { useRouter } from 'vue-router';
 import { useInventoryStore } from '@/stores/inventory';
 import { useAuthStore } from '@/stores/auth-store';
 import { useProjectStore } from '@/stores/projects';
-import serializedInventoryService from '@/services/serializedInventoryService';
+import serializedInventoryService from '@/services/inventory/serializedInventoryService';
 import dayjs from 'dayjs';
 
 // Store nesnelerini oluştur

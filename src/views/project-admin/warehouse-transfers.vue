@@ -302,8 +302,8 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useProjectStore } from '@/stores/projects';
 import { useInventoryStore } from '@/stores/inventory';
 import { useMeta } from '@/composables/use-meta';
-import { CentralWarehouseTransfer, ProductTransferItem } from '@/services/centralWarehouseTransferService';
-import centralWarehouseTransferService from '@/services/centralWarehouseTransferService';
+import { CentralWarehouseTransfer, ProductTransferItem } from '@/services/warehouse/centralWarehouseTransferService';
+import centralWarehouseTransferService from '@/services/warehouse/centralWarehouseTransferService';
 import IconPlus from '@/components/icon/icon-plus.vue';
 import IconX from '@/components/icon/icon-x.vue';
 

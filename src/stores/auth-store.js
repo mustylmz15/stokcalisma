@@ -1,10 +1,10 @@
 import { defineStore } from 'pinia';
 import { auth } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { userService, getUserProjects } from '@/services/userService';
-import PermissionServiceProxy from '@/services/permissionServiceProxy';
-import { Permission, UserRole as PermRole } from '@/services/permissionService';
-import DynamicPermissionManager from '@/services/dynamicPermissionManager';
+import { userService, getUserProjects } from '@/services/auth/userService';
+import PermissionServiceProxy from '@/services/permissions/permissionServiceProxy';
+import { Permission, UserRole as PermRole } from '@/services/permissions/permissionService';
+import DynamicPermissionManager from '@/services/permissions/dynamicPermissionManager';
 // Kolay erişim için alias tanımlıyoruz
 const PermissionService = PermissionServiceProxy;
 // Auth store tanımı
@@ -218,7 +218,6 @@ export const useAuthStore = defineStore('auth', {
             }
             // Auth listener'ı başlat
             this.initAuthListener();
-            return this.isLoggedIn;
         },
         // Auth listener'ı başlat - düzenleme yaptım
         initAuthListener() {
@@ -732,7 +731,7 @@ export const useAuthStore = defineStore('auth', {
                     return false;
                 // Admin her projenin ürün ayarlarını yapabilir
                 if (this.isAdmin) {
-                    const projectProductService = await import('@/services/projectProductService').then(m => m.default);
+                    const projectProductService = await import('@/services/projects/projectProductService').then(m => m.default);
                     await projectProductService.addProductSetting({
                         projectId,
                         ...productSettings
@@ -748,7 +747,7 @@ export const useAuthStore = defineStore('auth', {
                         return false;
                     }
                     // Proje ürün ayarlarını yap
-                    const projectProductService = await import('@/services/projectProductService').then(m => m.default);
+                    const projectProductService = await import('@/services/projects/projectProductService').then(m => m.default);
                     await projectProductService.addProductSetting({
                         projectId,
                         ...productSettings
@@ -768,7 +767,7 @@ export const useAuthStore = defineStore('auth', {
                 // Yetki kontrolü
                 if (!this.canApproveMaterialRequests)
                     return false;
-                const materialRequestService = await import('@/services/materialRequestService').then(m => m.default);
+                const materialRequestService = await import('@/services/materials/materialRequestService').then(m => m.default);
                 // Önce talebi getir
                 const request = await materialRequestService.getRequest(requestId);
                 if (!request) {
@@ -798,7 +797,7 @@ export const useAuthStore = defineStore('auth', {
                 // Yetki kontrolü
                 if (!this.canManageCentralWarehouseTransfers)
                     return false;
-                const centralWarehouseTransferService = await import('@/services/centralWarehouseTransferService').then(m => m.default);
+                const centralWarehouseTransferService = await import('@/services/warehouse/centralWarehouseTransferService').then(m => m.default);
                 // Eğer Proje Admin ise, sadece kendi projesi için transfer oluşturabilir
                 if (this.isProjectAdmin && !this.isAdmin) {
                     const hasPermission = await this.hasProjectRole(transferData.projectId, ['admin', 'proje_admin']);
@@ -838,6 +837,31 @@ export const useAuthStore = defineStore('auth', {
                 console.error('Kullanıcı projeleri alınırken hata:', error);
                 return [];
             }
+        },
+        /**
+         * İzin sistemini yenilemek için
+         */
+        async refreshPermissions() {
+            if (this.userInfo && this.userInfo.id) {
+                try {
+                    // İzin sistemini dinamik olarak yenilemek için
+                    // PermissionService kullanımını resetliyoruz
+                    console.log('İzin sistemi yenileniyor...');
+                    
+                    // Önbelleği temizleme işlemi 
+                    // DynamicPermissionManager sınıfıyla yapılabilir ancak
+                    // Store'dan erişim olmadığı için doğrudan
+                    // yeniden kullanıcı projelerini ve rollerini yüklüyoruz
+                    await this.initializeUserProjects();
+                    
+                    console.log('İzin sistemi başarıyla yenilendi.');
+                    return true;
+                } catch (error) {
+                    console.error('İzin sistemini yenileme hatası:', error);
+                    return false;
+                }
+            }
+            return false;
         },
     }
 });

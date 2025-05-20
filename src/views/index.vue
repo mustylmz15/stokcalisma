@@ -1745,7 +1745,7 @@ const latestFaultyProducts = ref<FaultyProductRecord[]>([]);
 async function loadLatestFaultyProducts() {
     try {
         // faultyProductService'den son gönderilen 5 arızalı ürünü al
-        const faultyProductService = (await import('@/services/faultyProductService')).default;
+        const faultyProductService = (await import('@/services/repair/faultyProductService')).default;
         const products = await faultyProductService.getLatestFaultyProducts(5);
         
         // Admin olmayan kullanıcılar için depo filtresi uygula (zaten serviste uygulanıyor)

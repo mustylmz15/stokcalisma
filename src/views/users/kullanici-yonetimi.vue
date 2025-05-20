@@ -302,7 +302,7 @@ const projectService = refValue<any>(null);
 // Daha güvenli bir import işlemi için async function kullanıyoruz
 async function loadProjectService() {
     try {
-        const module = await import('@/services/projectService');
+        const module = await import('@/services/projects/projectService');
         projectService.value = module.default;
         return true;
     } catch (error) {

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import inventoryService from '@/services/inventoryService';
+import inventoryService from '@/services/inventory/inventoryService';
 import { useProjectStore } from '@/stores/projects';
 import { db } from '@/firebase';
 import { doc, collection, runTransaction, serverTimestamp } from 'firebase/firestore';
@@ -189,7 +189,7 @@ export const useInventoryStore = defineStore('inventory', {
                 // Dinamik olarak serializedInventoryService'i import edelim
                 let serializedInventoryService;
                 try {
-                    serializedInventoryService = (await import('@/services/serializedInventoryService')).default;
+                    serializedInventoryService = (await import('@/services/inventory/serializedInventoryService')).default;
                 }
                 catch (importError) {
                     console.warn('serializedInventoryService yüklenirken hata:', importError);
@@ -530,7 +530,7 @@ export const useInventoryStore = defineStore('inventory', {
             this.loading = true;
             this.error = null;
             try {
-                const serializedInventoryService = (await import('@/services/serializedInventoryService')).default;
+                const serializedInventoryService = (await import('@/services/inventory/serializedInventoryService')).default;
                 const newItem = await serializedInventoryService.addSerializedItem(itemData);
                 // Bu ürünü state'e ekle
                 this.serializedItems.push(newItem);
@@ -552,7 +552,7 @@ export const useInventoryStore = defineStore('inventory', {
             this.loading = true;
             this.error = null;
             try {
-                const serializedInventoryService = (await import('@/services/serializedInventoryService')).default;
+                const serializedInventoryService = (await import('@/services/inventory/serializedInventoryService')).default;
                 const items = [];
                 for (const serialNumber of serialNumbers) {
                     try {
@@ -592,7 +592,7 @@ export const useInventoryStore = defineStore('inventory', {
             this.loading = true;
             this.error = null;
             try {
-                const serializedInventoryService = (await import('@/services/serializedInventoryService')).default;
+                const serializedInventoryService = (await import('@/services/inventory/serializedInventoryService')).default;
                 const updatedItem = await serializedInventoryService.updateSerializedItemStatus(serialNumber, status, notes);
                 // State'deki ilgili ürünü güncelle
                 const index = this.serializedItems.findIndex(item => item.serialNumber === serialNumber);
@@ -614,7 +614,7 @@ export const useInventoryStore = defineStore('inventory', {
             this.loading = true;
             this.error = null;
             try {
-                const serializedInventoryService = (await import('@/services/serializedInventoryService')).default;
+                const serializedInventoryService = (await import('@/services/inventory/serializedInventoryService')).default;
                 const transferredItem = await serializedInventoryService.transferSerializedItem(serialNumber, targetWarehouseId, notes);
                 // State'deki ilgili ürünü güncelle
                 const index = this.serializedItems.findIndex(item => item.serialNumber === serialNumber);
@@ -638,7 +638,7 @@ export const useInventoryStore = defineStore('inventory', {
             this.loading = true;
             this.error = null;
             try {
-                const serializedInventoryService = (await import('@/services/serializedInventoryService')).default;
+                const serializedInventoryService = (await import('@/services/inventory/serializedInventoryService')).default;
                 const items = await serializedInventoryService.getAllSerializedItems();
                 this.serializedItems = items;
                 return items;

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { UserDocument, UserRole, UpdateUserData } from './auth-store';
-import { userService } from '@/services/userService';
+import { userService } from '@/services/auth/userService';
 
 // Store'a özel interface'ler
 interface UsersState {

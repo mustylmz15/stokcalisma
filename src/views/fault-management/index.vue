@@ -529,11 +529,11 @@ import { useRoute } from 'vue-router';
 import { useArizaStore } from '@/stores/ariza-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { useInventoryStore } from '@/stores/inventory';
-import serializedInventoryService from '@/services/serializedInventoryService';
+import serializedInventoryService from '@/services/inventory/serializedInventoryService';
 import { useProjectStore } from '@/stores/projects';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/firebase';
-import PermissionService, { Permission, UserRole as PermRole } from '@/services/permissionService';
+import PermissionService, { Permission, UserRole as PermRole } from '@/services/permissions/permissionService';
 
 const arizaStore = useArizaStore();
 const authStore = useAuthStore();

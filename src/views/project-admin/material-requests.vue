@@ -220,8 +220,8 @@ import { useAppStore } from '@/stores/index';
 import { useAuthStore } from '@/stores/auth-store';
 import { useProjectStore } from '@/stores/projects';
 import { useMeta } from '@/composables/use-meta';
-import { MaterialRequest, MaterialRequestItem } from '@/services/materialRequestService';
-import materialRequestService from '@/services/materialRequestService';
+import { MaterialRequest, MaterialRequestItem } from '@/services/materials/materialRequestService';
+import materialRequestService from '@/services/materials/materialRequestService';
 import IconX from '@/components/icon/icon-x.vue';
 
 // Meta bilgilerini ayarla

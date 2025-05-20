@@ -227,8 +227,8 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useProjectStore } from '@/stores/projects';
 import { useInventoryStore } from '@/stores/inventory';
 import { useMeta } from '@/composables/use-meta';
-import { ProjectProductSettings } from '@/services/projectProductService';
-import projectProductService from '@/services/projectProductService';
+import { ProjectProductSettings } from '@/services/projects/projectProductService';
+import projectProductService from '@/services/projects/projectProductService';
 
 // İkon Bileşenleri
 import IconPlus from '@/components/icon/icon-plus.vue';

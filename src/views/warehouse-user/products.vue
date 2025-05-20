@@ -457,7 +457,7 @@ async function loadWarehouseInfo() {
         
         // Her deponun bağlı olduğu bir proje olmalı
         // Bu bilgiyi almak için proje-depo ilişkisini kontrol ediyoruz
-        const projectWarehouseService = (await import('@/services/projectService')).default;
+        const projectWarehouseService = (await import('@/services/projects/projectService')).default;
         
         try {
             const projectId = await projectWarehouseService.getProjectIdByWarehouse(warehouseId.value);
@@ -487,7 +487,7 @@ async function loadWarehouseStocks() {
         loading.value = true;
         
         // Depo stoklarını al
-        const inventoryService = (await import('@/services/inventoryService')).default;
+        const inventoryService = (await import('@/services/inventory/inventoryService')).default;
         const warehouseStocks = await inventoryService.getStocksByWarehouse(warehouseId.value);
         
         stocks.value = warehouseStocks;
@@ -540,7 +540,7 @@ async function openSerialNumbersModal(stock: any) {
         loading.value = true;
         
         // Ürüne ait seri numaralı kayıtları getir
-        const serializedInventoryService = (await import('@/services/serializedInventoryService')).default;
+        const serializedInventoryService = (await import('@/services/inventory/serializedInventoryService')).default;
         const items = await serializedInventoryService.getSerializedItemsByProductInWarehouse(stock.productId, warehouseId.value);
         
         serializedItems.value = items;
@@ -572,7 +572,7 @@ async function openRequestModal() {
         materialRequestForm.value.sourceWarehouseId = centralWarehouses[0].id;
         
         // Merkez depo stoklarını al
-        const inventoryService = (await import('@/services/inventoryService')).default;
+        const inventoryService = (await import('@/services/inventory/inventoryService')).default;
         const stocks = await inventoryService.getStocksByWarehouse(centralWarehouses[0].id);
         
         centralWarehouseStocks.value = stocks;
@@ -642,7 +642,7 @@ async function submitMaterialRequest() {
         };
         
         // Talebi kaydet
-        const materialRequestService = (await import('@/services/materialRequestService')).default;
+        const materialRequestService = (await import('@/services/materials/materialRequestService')).default;
         await materialRequestService.createRequest(request);
         
         appStore.showMessage('Malzeme talebi başarıyla oluşturuldu.', 'success');
@@ -672,7 +672,7 @@ async function registerFaultyProduct(stock: any) {
         loading.value = true;
         
         // Seri numaralı ürünleri getir
-        const serializedInventoryService = (await import('@/services/serializedInventoryService')).default;
+        const serializedInventoryService = (await import('@/services/inventory/serializedInventoryService')).default;
         const items = await serializedInventoryService.getSerializedItemsByProductInWarehouse(stock.productId, warehouseId.value);
         
         serializedItems.value = items.filter(item => item.status === 'active');
@@ -689,7 +689,7 @@ async function registerFaultyProduct(stock: any) {
 // Arıza tiplerini yükle
 async function loadFaultTypes() {
     try {
-        const faultyProductService = (await import('@/services/faultyProductService')).default;
+        const faultyProductService = (await import('@/services/repair/faultyProductService')).default;
         const types = await faultyProductService.getFaultTypes();
         
         faultTypes.value = types;
@@ -709,7 +709,7 @@ async function submitFaultyProductReport() {
     try {
         submitLoading.value = true;
         
-        const faultyProductService = (await import('@/services/faultyProductService')).default;
+        const faultyProductService = (await import('@/services/repair/faultyProductService')).default;
         
         // Arızalı ürün raporu oluştur
         const faultyReport = {
@@ -733,7 +733,7 @@ async function submitFaultyProductReport() {
         
         // Eğer seri numaralı ürünse, durumunu güncelle
         if (faultyForm.value.serialNumber) {
-            const serializedInventoryService = (await import('@/services/serializedInventoryService')).default;
+            const serializedInventoryService = (await import('@/services/inventory/serializedInventoryService')).default;
             await serializedInventoryService.updateSerializedItemStatus(
                 faultyForm.value.serialNumber, 
                 'faulty', 
@@ -741,7 +741,7 @@ async function submitFaultyProductReport() {
             );
         } else {
             // Normal stok çıkışı yap
-            const inventoryService = (await import('@/services/inventoryService')).default;
+            const inventoryService = (await import('@/services/inventory/inventoryService')).default;
             await inventoryService.processStockMovement(
                 faultyForm.value.productId,
                 warehouseId.value,
@@ -785,7 +785,7 @@ async function markAsConsigned(item: any) {
     try {
         submitLoading.value = true;
         
-        const serializedInventoryService = (await import('@/services/serializedInventoryService')).default;
+        const serializedInventoryService = (await import('@/services/inventory/serializedInventoryService')).default;
         await serializedInventoryService.updateSerializedItemStatus(
             item.serialNumber, 
             'consigned', 
@@ -811,7 +811,7 @@ async function sendToRepair(item: any) {
     try {
         submitLoading.value = true;
         
-        const serializedInventoryService = (await import('@/services/serializedInventoryService')).default;
+        const serializedInventoryService = (await import('@/services/inventory/serializedInventoryService')).default;
         await serializedInventoryService.updateSerializedItemStatus(
             item.serialNumber, 
             'repair', 
@@ -819,7 +819,7 @@ async function sendToRepair(item: any) {
         );
         
         // Onarım merkezine gönderme kaydı oluştur
-        const faultyProductService = (await import('@/services/faultyProductService')).default;
+        const faultyProductService = (await import('@/services/repair/faultyProductService')).default;
         await faultyProductService.sendToRepairCenter({
             serialNumber: item.serialNumber,
             productId: item.productId,

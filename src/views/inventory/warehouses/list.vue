@@ -284,7 +284,7 @@ import IconX from '@/components/icon/icon-x.vue';
 import { useAuthStore } from '@/stores/auth-store';
 import { useInventoryStore } from '@/stores/inventory.js';
 import { useProjectStore } from '@/stores/projects';
-import inventoryService from '@/services/inventoryService';
+import inventoryService from '@/services/inventory/inventoryService';
 import { eventBus } from '@/composables/eventBus';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/firebase';

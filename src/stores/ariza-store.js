@@ -3,7 +3,7 @@ import { ref, computed } from 'vue';
 import { doc, collection, getDocs, setDoc, updateDoc, deleteDoc, query, Timestamp, orderBy } from 'firebase/firestore';
 import { db } from '@/firebase';
 import { useAuthStore } from './auth-store';
-import serializedInventoryService from '@/services/serializedInventoryService';
+import serializedInventoryService from '@/services/inventory/serializedInventoryService';
 export const useArizaStore = defineStore('ariza', () => {
     const authStore = useAuthStore();
     // State

@@ -7,8 +7,9 @@ import App from '@/App.vue';
 import { createPinia } from 'pinia';
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate';
 import { auth } from '@/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
-import inventoryService from '@/services/inventoryService';
+import { onAuthStateChanged, getIdToken } from 'firebase/auth';
+import { setupNetworkErrorDetection } from '@/firebase/networkErrorHandler';
+import inventoryService from '@/services/inventory/inventoryService';
 import router from '@/router';
 import '@/assets/css/app.css';
 import { PerfectScrollbarPlugin } from 'vue3-perfect-scrollbar';
@@ -24,6 +25,9 @@ import vue3JsonExcel from 'vue3-json-excel';
 // Store importları
 import { useAuthStore } from './stores/auth-store';
 import { useProjectStore } from './stores/projects';
+
+// Firebase network hata dedektörünü kur
+setupNetworkErrorDetection();
 
 // App oluştur
 const app = createApp(App);
@@ -66,6 +70,10 @@ try {
             // Oturum açmış kullanıcı için işlemleri yapalım
             if (user) {
                 try {
+                    // Token'ı yenile - oturum açıldıktan sonra taze bir token alalım
+                    await user.getIdToken(true); 
+                    console.log('Firebase kimlik doğrulama token\'ı yenilendi');
+                    
                     // Kullanıcının tüm verilerinin yüklenmesi için gerekli kod
                     await projectStore.initializeStore();                    if (authStore.isLoggedIn) {
                         try {
@@ -139,5 +147,44 @@ app.component('Popper', Popper);
 
 // json to excel
 app.use(vue3JsonExcel);
+
+// Firebase kimlik doğrulama durumu dinleme ve düzenli token yenileme
+onAuthStateChanged(auth, async (user) => {
+    if (user) {
+        try {
+            // Kullanıcı oturum açtığında token'ı yenile
+            await user.getIdToken(true); 
+            console.log('Firebase kimlik doğrulama token\'ı yenilendi');
+            
+            // Uygulama başlatıldıktan sonra token yenileme başarılıysa
+            // İzin sistemini yeniden başlat
+            const authStore = useAuthStore();
+            
+            // Token yenilendikten sonra izin sistemini sıfırla ve yeniden yükle
+            if (authStore.isLoggedIn && authStore.userInfo) {
+                try {
+                    // Kısa bir gecikme ekleyelim, Firebase'in token değişikliğini işlemesine zaman tanıyalım
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    // Auth store izin sistemini yenile
+                    await authStore.refreshPermissions();
+                    console.log('İzin sistemi token yenilemeden sonra başarıyla yenilendi');
+                    
+                    // Yenileme başarılı olduysa kullanıcı bilgileri de yenilensin
+                    if (authStore.initializeStore) {
+                        await authStore.initializeStore();
+                    }
+                    
+                    // İzin yenilemesi başarılı olduğunu konsola bildiriyoruz
+                    console.info('✅ Kullanıcı oturumu ve yetkileri başarıyla yenilendi');
+                } catch (permError) {
+                    console.error('İzin sistemi yenilenirken hata:', permError);
+                }
+            }
+        } catch (error) {
+            console.error('Token yenileme hatası:', error);
+        }
+    }
+});
 
 app.mount('#app');

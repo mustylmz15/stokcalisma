@@ -205,15 +205,15 @@ async function loadProjectWarehouses() {
     
     try {
         // Önce projeye ait depoları al
-        const projectService = (await import('@/services/projectService')).default;
+        const projectService = (await import('@/services/projects/projectService')).default;
         const warehouses = await projectService.getWarehousesByProjectId(selectedProjectId.value);
         projectWarehouses.value = warehouses;
         
         // Sonra bu depolardaki stokları al
-        const inventoryService = (await import('@/services/inventoryService')).default;
+        const inventoryService = (await import('@/services/inventory/inventoryService')).default;
         const stocks = await inventoryService.getStocksByProject(selectedProjectId.value);
         warehouseStocks.value = stocks;        // Arızalı ürün sayısını al
-        const faultyService = (await import('@/services/faultyProductService')).default;
+        const faultyService = (await import('@/services/repair/faultyProductService')).default;
         // getFaultyProductsByProject yerine mevcut olan metodu kullanacağız
         const faultyProducts = await faultyService.getLatestFaultyProducts(100); // Tüm kayıtları getir ve sonra filtreleme yap
         // Projeye ait olanları filtrele
@@ -221,7 +221,7 @@ async function loadProjectWarehouses() {
         faultyProductCount.value = projectFaultyProducts.length;
         
         // Bekleyen talepleri al
-        const materialRequestService = (await import('@/services/materialRequestService')).default;
+        const materialRequestService = (await import('@/services/materials/materialRequestService')).default;
         // MaterialRequestService'de projeye ait talepleri getiren fonksiyon var
         const projectRequests = await materialRequestService.getProjectRequests(selectedProjectId.value);
         // Status değeri draft, requested veya processing olanları filtrele
