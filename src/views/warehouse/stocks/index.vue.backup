@@ -1,0 +1,689 @@
+<template>
+  <div class="panel p-0">
+    <!-- Başlık -->
+    <div class="panel-header p-5 border-b border-white-light dark:border-dark">
+      <div class="flex items-center justify-between">
+        <h5 class="font-semibold text-lg dark:text-white-light">
+          {{ $t('warehouse_stocks') }}
+        </h5>
+        <div class="flex items-center space-x-3">          <!-- Depimport { useWarehouseStocks } from '@/composables/useWarehouseStocks'
+import { warehouseService } from '@/services/warehouseService'
+import { warehouseStocksService } from '@/services/warehouseStocksService'
+import StockMovementModal from '@/components/warehouse/StockMovementModal.vue'çimi -->
+          <div class="w-64">
+            <select
+              v-model="selectedWarehouse"
+              class="form-select"
+              @change="handleWarehouseChange(selectedWarehouse)"
+            >
+              <option :value="null">{{ $t('select_warehouse') }}</option>
+              <option 
+                v-for="warehouse in warehouses" 
+                :key="warehouse.id" 
+                :value="warehouse"
+              >
+                {{ warehouse.name }}
+              </option>
+            </select>
+          </div>
+          
+          <!-- Filtreler -->
+          <button
+            @click="showFilters = !showFilters"
+            class="btn btn-outline-primary"
+            type="button"
+          >
+            <icon-settings class="w-5 h-5 mr-2" />
+            {{ $t('filters') }}
+          </button>
+            <!-- Stock Hareketi Ekle -->
+          <button
+            @click="() => openStockMovementModal()"
+            class="btn btn-primary"
+            type="button"
+            :disabled="!selectedWarehouse"
+          >
+            <icon-plus class="w-5 h-5 mr-2" />
+            {{ $t('add_movement') }}
+          </button>
+        </div>
+      </div>
+      
+      <!-- Filtreler Panel -->
+      <div v-if="showFilters" class="mt-4 p-4 bg-gray-50 dark:bg-dark rounded-lg">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <!-- Ürün Arama -->
+          <div>
+            <label class="form-label">{{ $t('search_product') }}</label>
+            <input
+              v-model="filters.search"
+              type="text"
+              class="form-input"
+              :placeholder="$t('product_name_or_code')"
+            />
+          </div>
+          
+          <!-- Kategori -->
+          <div>
+            <label class="form-label">{{ $t('category') }}</label>
+            <select v-model="filters.category" class="form-select">
+              <option value="">{{ $t('all_categories') }}</option>
+              <option v-for="category in categories" :key="category" :value="category">
+                {{ category }}
+              </option>
+            </select>
+          </div>
+          
+          <!-- Stok Durumu -->
+          <div>
+            <label class="form-label">{{ $t('stock_status') }}</label>
+            <select v-model="filters.stockStatus" class="form-select">
+              <option value="">{{ $t('all_stocks') }}</option>
+              <option value="in_stock">{{ $t('in_stock') }}</option>
+              <option value="low_stock">{{ $t('low_stock') }}</option>
+              <option value="out_of_stock">{{ $t('out_of_stock') }}</option>
+            </select>
+          </div>
+          
+          <!-- Sıralama -->
+          <div>
+            <label class="form-label">{{ $t('sort_by') }}</label>
+            <select v-model="filters.sortBy" class="form-select">
+              <option value="name">{{ $t('product_name') }}</option>
+              <option value="quantity">{{ $t('quantity') }}</option>
+              <option value="value">{{ $t('total_value') }}</option>
+              <option value="last_movement">{{ $t('last_movement') }}</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- İstatistikler -->
+    <div v-if="selectedWarehouse && stats" class="p-5 border-b border-white-light dark:border-dark">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg p-4 text-white">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-2xl font-bold">{{ stats.total_products || 0 }}</div>
+              <div class="text-sm opacity-80">{{ $t('total_products') }}</div>
+            </div>
+            <icon-box class="w-8 h-8 opacity-80" />
+          </div>
+        </div>
+        
+        <div class="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-4 text-white">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-2xl font-bold">{{ formatCurrency(stats.total_value || 0) }}</div>
+              <div class="text-sm opacity-80">{{ $t('total_value') }}</div>
+            </div>
+            <icon-dollar-sign class="w-8 h-8 opacity-80" />
+          </div>
+        </div>
+        
+        <div class="bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg p-4 text-white">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-2xl font-bold">{{ stats.low_stock_products || 0 }}</div>
+              <div class="text-sm opacity-80">{{ $t('low_stock_items') }}</div>
+            </div>
+            <icon-info-triangle class="w-8 h-8 opacity-80" />
+          </div>
+        </div>
+        
+        <div class="bg-gradient-to-r from-red-500 to-red-600 rounded-lg p-4 text-white">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-2xl font-bold">{{ stats.out_of_stock_products || 0 }}</div>
+              <div class="text-sm opacity-80">{{ $t('out_of_stock_items') }}</div>
+            </div>
+            <icon-x-circle class="w-8 h-8 opacity-80" />
+          </div>
+        </div>
+      </div>
+    </div>
+      <!-- Stok Tablosu -->
+    <div class="panel-body">
+      <!-- Hata Mesajı -->
+      <div v-if="localError" class="alert alert-danger mb-4">
+        <div class="flex items-center">
+          <icon-info-triangle class="w-5 h-5 mr-2" />
+          <span>{{ localError }}</span>
+        </div>
+      </div>
+      
+      <div v-if="loading" class="flex items-center justify-center py-10">
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <span class="ml-2">{{ $t('loading') }}...</span>
+      </div>
+      
+      <div v-else-if="!selectedWarehouse" class="text-center py-10 text-gray-500">
+        <icon-box class="w-12 h-12 mx-auto mb-4 opacity-50" />
+        <p>{{ $t('please_select_warehouse') }}</p>
+      </div>
+      
+      <div v-else-if="stocks.length === 0" class="text-center py-10 text-gray-500">
+        <icon-box class="w-12 h-12 mx-auto mb-4 opacity-50" />
+        <p>{{ $t('no_stocks_found') }}</p>
+      </div>
+      
+      <div v-else class="overflow-x-auto">
+        <table class="table-hover">
+          <thead>
+            <tr>
+              <th>{{ $t('product') }}</th>
+              <th>{{ $t('current_stock') }}</th>
+              <th>{{ $t('reserved') }}</th>
+              <th>{{ $t('available') }}</th>
+              <th>{{ $t('unit_price') }}</th>
+              <th>{{ $t('total_value') }}</th>
+              <th>{{ $t('last_movement') }}</th>
+              <th>{{ $t('status') }}</th>
+              <th class="text-center">{{ $t('actions') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="stock in paginatedStocks" :key="stock.id">
+              <!-- Ürün Bilgisi -->
+              <td>
+                <div class="flex items-center">
+                  <div class="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center mr-3">
+                    <icon-box class="w-5 h-5 text-gray-500" />
+                  </div>                  <div>
+                    <div class="font-semibold">{{ stock.product.name }}</div>
+                    <div class="text-sm text-gray-500">{{ stock.product.sku }}</div>
+                  </div>
+                </div>
+              </td>
+                <!-- Mevcut Stok -->
+              <td>
+                <span class="font-semibold">{{ stock.current_quantity || 0 }}</span>
+                <span class="text-sm text-gray-500 ml-1">{{ stock.product.unit || 'adet' }}</span>
+              </td>
+              
+              <!-- Rezerve -->
+              <td>
+                <span class="text-orange-600">{{ stock.reserved_quantity || 0 }}</span>
+              </td>
+              
+              <!-- Kullanılabilir -->
+              <td>
+                <span class="text-green-600 font-semibold">{{ (stock.current_quantity || 0) - (stock.reserved_quantity || 0) }}</span>
+              </td>
+              
+              <!-- Birim Fiyat -->
+              <td>
+                -
+              </td>
+              
+              <!-- Toplam Değer -->
+              <td>
+                <span class="font-semibold">-</span>
+              </td>
+              
+              <!-- Son Hareket -->
+              <td>
+                <span v-if="stock.last_movement_date" class="text-sm">
+                  {{ formatDate(stock.last_movement_date) }}
+                </span>
+                <span v-else class="text-gray-400">-</span>
+              </td>
+              
+              <!-- Durum -->
+              <td>
+                <span
+                  :class="{
+                    'badge-outline-success': getStockStatus(stock) === 'in_stock',
+                    'badge-outline-warning': getStockStatus(stock) === 'low_stock',
+                    'badge-outline-danger': getStockStatus(stock) === 'out_of_stock'
+                  }"
+                  class="badge"
+                >
+                  {{ $t(getStockStatus(stock)) }}
+                </span>
+              </td>
+              
+              <!-- Aksiyonlar -->
+              <td class="text-center">
+                <div class="flex items-center justify-center space-x-1">
+                  <button
+                    @click="viewStockDetails(stock)"
+                    class="btn btn-sm btn-outline-info"
+                    type="button"
+                    :title="$t('view_details')"
+                  >
+                    <icon-eye class="w-4 h-4" />
+                  </button>
+                  
+                  <button
+                    @click="editStock(stock)"
+                    class="btn btn-sm btn-outline-primary"
+                    type="button"
+                    :title="$t('edit')"
+                  >
+                    <icon-edit class="w-4 h-4" />
+                  </button>
+                  
+                  <button
+                    @click="openStockMovementModal(stock)"
+                    class="btn btn-sm btn-outline-success"
+                    type="button"
+                    :title="$t('add_movement')"
+                  >
+                    <icon-plus class="w-4 h-4" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Pagination -->
+      <div v-if="totalPages > 1" class="flex items-center justify-between mt-5">
+        <div class="text-sm text-gray-500">
+          {{ $t('showing') }} {{ (currentPage - 1) * pageSize + 1 }} - {{ Math.min(currentPage * pageSize, filteredStocks.length) }}
+          {{ $t('of') }} {{ filteredStocks.length }} {{ $t('items') }}
+        </div>
+        <nav class="flex items-center space-x-1">
+          <button
+            @click="currentPage = 1"
+            :disabled="currentPage === 1"
+            class="btn btn-sm btn-outline-primary"
+          >
+            {{ $t('first') }}
+          </button>
+          <button
+            @click="currentPage--"
+            :disabled="currentPage === 1"
+            class="btn btn-sm btn-outline-primary"
+          >
+            {{ $t('previous') }}
+          </button>
+          <span class="px-3 py-1 text-sm">
+            {{ currentPage }} / {{ totalPages }}
+          </span>
+          <button
+            @click="currentPage++"
+            :disabled="currentPage === totalPages"
+            class="btn btn-sm btn-outline-primary"
+          >
+            {{ $t('next') }}
+          </button>
+          <button
+            @click="currentPage = totalPages"
+            :disabled="currentPage === totalPages"
+            class="btn btn-sm btn-outline-primary"
+          >
+            {{ $t('last') }}
+          </button>
+        </nav>
+      </div>
+    </div>
+      <!-- Stock Movement Modal -->
+    <StockMovementModal
+      v-if="showStockMovementModal"
+      :model-value="showStockMovementModal"
+      :warehouse-id="selectedWarehouse?.id || ''"
+      :preselected-product-id="selectedStock?.product_id"
+      @update:model-value="showStockMovementModal = $event"
+      @success="handleMovementSuccess"
+    />
+    
+    <!-- Stock Details Modal -->
+    <div v-if="showStockDetails" class="fixed inset-0 z-50 overflow-y-auto">
+      <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="closeStockDetails"></div>
+        
+        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+          <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold">{{ $t('stock_details') }}</h3>
+              <button @click="closeStockDetails" class="text-gray-400 hover:text-gray-600">
+                <icon-x class="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div v-if="selectedStock" class="space-y-4">
+              <div class="grid grid-cols-2 gap-4">                <div>
+                  <label class="form-label">{{ $t('product_name') }}</label>
+                  <p class="text-sm text-gray-900">{{ selectedStock.product?.name }}</p>
+                </div>
+                <div>
+                  <label class="form-label">{{ $t('product_code') }}</label>
+                  <p class="text-sm text-gray-900">{{ selectedStock.product?.sku }}</p>
+                </div>
+                <div>
+                  <label class="form-label">{{ $t('current_stock') }}</label>
+                  <p class="text-sm text-gray-900">{{ selectedStock.current_quantity }} {{ selectedStock.product?.unit }}</p>
+                </div>
+                <div>
+                  <label class="form-label">{{ $t('reserved') }}</label>
+                  <p class="text-sm text-gray-900">{{ selectedStock.reserved_quantity || 0 }}</p>
+                </div>
+                <div>
+                  <label class="form-label">{{ $t('minimum_level') }}</label>
+                  <p class="text-sm text-gray-900">{{ selectedStock.minimum_level || '-' }}</p>
+                </div>
+                <div>
+                  <label class="form-label">{{ $t('unit_price') }}</label>
+                  <p class="text-sm text-gray-900">-</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <button
+              @click="closeStockDetails"
+              class="btn btn-outline-secondary"
+              type="button"
+            >
+              {{ $t('close') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useWarehouseStocks } from '@/composables/useWarehouseStocks'
+import { warehouseService } from '@/services/warehouseService'
+import { warehouseStocksService } from '@/services/warehouseStocksService'
+import StockMovementModal from '@/components/warehouse/StockMovementModal.vue'
+
+// Icons
+import IconSettings from '@/components/icon/icon-settings.vue'
+import IconPlus from '@/components/icon/icon-plus.vue'
+import IconBox from '@/components/icon/icon-box.vue'
+import IconDollarSign from '@/components/icon/icon-dollar-sign.vue'
+import IconInfoTriangle from '@/components/icon/icon-info-triangle.vue'
+import IconXCircle from '@/components/icon/icon-x-circle.vue'
+import IconEye from '@/components/icon/icon-eye.vue'
+import IconEdit from '@/components/icon/icon-edit.vue'
+import IconX from '@/components/icon/icon-x.vue'
+
+const { t } = useI18n()
+
+// Composables
+const {
+  stocks,
+  stats,
+  loading,
+  error,
+  loadStocks,
+  loadStats,
+  loadCategories,
+  categories
+} = useWarehouseStocks()
+
+// State
+const selectedWarehouse = ref<any>(null)
+const warehouses = ref<any[]>([])
+const showFilters = ref(false)
+const showStockMovementModal = ref(false)
+const showStockDetails = ref(false)
+const selectedStock = ref<any>(null)
+const currentPage = ref(1)
+const pageSize = ref(50)
+const localError = ref<string | null>(null)
+
+// Filters
+const filters = ref({
+  search: '',
+  category: '',
+  stockStatus: '',
+  sortBy: 'name'
+})
+
+// Computed
+const warehouseOptions = computed(() => {
+  return warehouses.value.map(w => ({
+    id: w.id,
+    name: w.name,
+    type: w.warehouse_type
+  }))
+})
+
+const filteredStocks = computed(() => {
+  let filtered = [...stocks.value]
+  
+  // Arama filtresi
+  if (filters.value.search) {
+    const searchTerm = filters.value.search.toLowerCase()
+    filtered = filtered.filter(stock => 
+      stock.product.name?.toLowerCase().includes(searchTerm) ||
+      stock.product.sku?.toLowerCase().includes(searchTerm)
+    )
+  }
+  
+  // Kategori filtresi
+  if (filters.value.category) {
+    filtered = filtered.filter(stock => stock.product.category === filters.value.category)
+  }
+  
+  // Stok durumu filtresi
+  if (filters.value.stockStatus) {
+    filtered = filtered.filter(stock => getStockStatus(stock) === filters.value.stockStatus)
+  }
+  
+  // Sıralama
+  filtered.sort((a, b) => {
+    switch (filters.value.sortBy) {
+      case 'name':
+        return (a.product.name || '').localeCompare(b.product.name || '')
+      case 'quantity':
+        return (b.current_quantity || 0) - (a.current_quantity || 0)
+      case 'value':
+        // Unit price bilgisi StockItem'da yok, şimdilik skip
+        return 0
+      case 'last_movement':
+        return new Date(b.last_movement_date || 0).getTime() - new Date(a.last_movement_date || 0).getTime()
+      default:
+        return 0
+    }
+  })
+  
+  return filtered
+})
+
+const paginatedStocks = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return filteredStocks.value.slice(start, end)
+})
+
+const totalPages = computed(() => {
+  return Math.ceil(filteredStocks.value.length / pageSize.value)
+})
+
+// Methods
+const loadWarehouses = async () => {
+  try {
+    const { data } = await warehouseService.getAllWarehouses()
+    warehouses.value = data || []
+  } catch (err) {
+    console.error('Depo listesi yüklenirken hata:', err)
+  }
+}
+
+const formatCurrency = (value: number): string => {
+  return new Intl.NumberFormat('tr-TR', {
+    style: 'currency',
+    currency: 'TRY',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value)
+}
+
+const formatNumber = (value: number): string => {
+  return new Intl.NumberFormat('tr-TR').format(value)
+}
+
+const getStockStatus = (stock: any) => {
+  if (!stock.current_quantity || stock.current_quantity === 0) {
+    return 'out_of_stock'
+  }
+  if (stock.current_quantity <= (stock.minimum_level || 0)) {
+    return 'low_stock'
+  }
+  return 'in_stock'
+}
+
+const getStockStatusBadge = (stock: any) => {
+  const status = getStockStatus(stock)
+  const statusConfig = {
+    in_stock: { class: 'badge-success', text: 'Stokta' },
+    low_stock: { class: 'badge-warning', text: 'Düşük Stok' },
+    out_of_stock: { class: 'badge-danger', text: 'Stok Yok' }
+  }
+  return statusConfig[status] || statusConfig.in_stock
+}
+
+const handleWarehouseChange = async (warehouse: any) => {
+  if (!warehouse) return
+  
+  console.log('Depo seçildi:', warehouse.id, warehouse.name)
+  selectedWarehouse.value = warehouse
+  currentPage.value = 1
+  
+  // Composable'ın kendi warehouseId'sini kullanmak yerine manuel olarak yükleyelim
+  try {
+    loading.value = true
+    console.log('Depo verileri yükleniyor...')
+    
+    const [stocksData, statsData] = await Promise.all([
+      warehouseStocksService.getWarehouseStocks(warehouse.id),
+      warehouseStocksService.getWarehouseStockStats(warehouse.id)
+    ])
+    
+    console.log('Stok verileri:', stocksData)
+    console.log('İstatistik verileri:', statsData)
+    
+    stocks.value = stocksData.data || []
+    stats.value = statsData || {}
+    
+    console.log('Yüklenen stok sayısı:', stocks.value.length)
+    console.log('İstatistikler:', stats.value)
+  } catch (err) {    console.error('Depo verileri yüklenirken hata:', err)
+    localError.value = err instanceof Error ? err.message : 'Bilinmeyen hata'
+  } finally {
+    loading.value = false
+  }
+}
+
+const formatDate = (date: string) => {
+  if (!date) return '-'
+  return new Intl.DateTimeFormat('tr-TR', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  }).format(new Date(date))
+}
+
+const openStockMovementModal = (stock: any = null) => {
+  console.log('openStockMovementModal çağrıldı, stock:', stock)
+  console.log('selectedWarehouse:', selectedWarehouse.value)
+  selectedStock.value = stock
+  showStockMovementModal.value = true
+  console.log('showStockMovementModal set to:', showStockMovementModal.value)
+}
+
+const closeStockMovementModal = () => {
+  showStockMovementModal.value = false
+  selectedStock.value = null
+}
+
+const handleMovementSuccess = () => {
+  if (selectedWarehouse.value) {
+    // Stokları ve istatistikleri yenile
+    handleWarehouseChange(selectedWarehouse.value)
+  }
+}
+
+const viewStockDetails = (stock) => {
+  selectedStock.value = stock
+  showStockDetails.value = true
+}
+
+const closeStockDetails = () => {
+  showStockDetails.value = false
+  selectedStock.value = null
+}
+
+const editStock = (stock) => {
+  // Stock düzenleme modalını aç
+  console.log('Edit stock:', stock)
+}
+
+// Lifecycle
+onMounted(() => {
+  loadWarehouses()
+})
+
+// Watchers
+watch(() => filters.value, () => {
+  currentPage.value = 1
+}, { deep: true })
+</script>
+
+<style scoped>
+.table-hover tbody tr:hover {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.dark .table-hover tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1rem;
+}
+
+.badge-outline-success {
+  background-color: rgb(220 252 231);
+  color: rgb(22 163 74);
+  border: 1px solid rgb(187 247 208);
+}
+
+.badge-outline-warning {
+  background-color: rgb(254 249 195);
+  color: rgb(146 64 14);
+  border: 1px solid rgb(253 230 138);
+}
+
+.badge-outline-danger {
+  background-color: rgb(254 226 226);
+  color: rgb(153 27 27);
+  border: 1px solid rgb(252 165 165);
+}
+
+.dark .badge-outline-success {
+  background-color: rgb(20 83 45);
+  color: rgb(187 247 208);
+  border-color: rgb(22 163 74);
+}
+
+.dark .badge-outline-warning {
+  background-color: rgb(120 53 15);
+  color: rgb(253 230 138);
+  border-color: rgb(146 64 14);
+}
+
+.dark .badge-outline-danger {
+  background-color: rgb(127 29 29);
+  color: rgb(252 165 165);
+  border-color: rgb(153 27 27);
+}
+</style>
